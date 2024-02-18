@@ -148,6 +148,11 @@ function commander(cmd) {
       addLine("Opening WhatsApp...", "color2", 0);
       newTab(whatsapp);
       break;
+    case "resume":
+      addLine('Downloading resume...', 'color2', 80);
+      // Replace 'your_resume_link.pdf' with the actual link to your resume
+      downloadFile('assets/pepe_araya_resume.pdf', 'Pepe_Araya_Resume.pdf');
+      break;
     default:
       addLine("<span class=\"inherit\">Command not found. For a list of commands, type <span class=\"command\">'help'</span>.</span>", "error", 100);
       break;
@@ -185,4 +190,11 @@ function loopLines(name, style, time) {
   name.forEach(function(item, index) {
     addLine(item, style, index * time);
   });
+}
+
+function downloadFile(url, fileName) {
+  var link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
 }
