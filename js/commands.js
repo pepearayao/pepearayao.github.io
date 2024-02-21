@@ -31,9 +31,10 @@ whois = [
   "<br>"
 ];
 
-whatarewe = [
+whoami = [
   "<br>",
-  "Sorry I don't even know what I had for breakfast. These philosofical questions can be answered elseware. Maybe ask ChatGPT?",
+  "Sorry I don't even know what I had for breakfast. These philosofical questions",
+  "can be answered elseware. Maybe ask ChatGPT?",
   "<br>"
 ];
 
