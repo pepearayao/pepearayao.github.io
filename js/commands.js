@@ -62,7 +62,7 @@ projects = [
 help = [
   "<br>",
   '<span class="command">whois</span>          Who is Pepe?',
-  '<span class="command">whatarewe</span>      Does anyone really knows?',
+  '<span class="command">whoami</span>      Does anyone really knows?',
   '<span class="command">social</span>         Display social networks',
   '<span class="command">secret</span>         Find the easteregg',
   '<span class="command">projects</span>       View coding projects',
