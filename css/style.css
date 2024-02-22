@@ -129,3 +129,11 @@ a:hover {
 a:focus {
   outline: 0;
 }
+
+.small-print {
+  font-size: 70%; /* 100% - 40% = 60% */
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  padding:10px;
+}
