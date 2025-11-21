@@ -74,7 +74,8 @@ help = [
   "<br>",
 ];
 
-banner = [
+// Desktop banner (full ASCII art)
+bannerDesktop = [
   '<span class="index">Jose(Pepe) Araya personal website. Welcome.</span>',
   "<span class=\"color2 small-print\">Website design based on FKCodes</span>",
   '<br>',
@@ -90,3 +91,21 @@ banner = [
   '<br><span class="color2">Welcome to my interactive web terminal.</span>',
   "<span class=\"color2\">For a list of available commands, type</span> <span class=\"command\">'help'</span><span class=\"color2\">.</span>",
 ];
+
+// Mobile banner (condensed version)
+bannerMobile = [
+  '<span class="index">Jose(Pepe) Araya</span>',
+  "<span class=\"color2 small-print\">Design based on FKCodes</span>",
+  '<br>',
+  "  ____  ____  ____  ____      _    ____      _    __   __    _    ",
+  " |  _ \\| __ )|  _ \\| ___|    / \\  |  _ \\    / \\   \\ \\ / /   / \\   ",
+  " | |_) |  _ \\| |_) |  _|    / _ \\ | |_) |  / _ \\   \\ V /   / _ \\  ",
+  " |  __/| |_) |  __/| |___  / ___ \\|  _ <  / ___ \\   | |   / ___ \\ ",
+  " |_|   |____/|_|   |_____|/_/   \\_\\_| \\_\\/_/   \\_\\  |_|  /_/   \\_\\",
+  '<br>',
+  '<span class="color2">Interactive Web Terminal</span>',
+  "<span class=\"color2\">Type</span> <span class=\"command\">'help'</span> <span class=\"color2\">for commands</span>",
+];
+
+// Set banner based on screen size
+banner = window.innerWidth <= 768 ? bannerMobile : bannerDesktop;

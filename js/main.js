@@ -9,7 +9,16 @@ var pw = false;
 let pwd = false;
 var commands = [];
 
+// Function to update banner based on screen size
+function updateBanner() {
+  banner = window.innerWidth <= 768 ? bannerMobile : bannerDesktop;
+}
+
+// Update banner on window resize
+window.addEventListener('resize', updateBanner);
+
 setTimeout(function() {
+  updateBanner(); // Ensure correct banner is loaded
   loopLines(banner, "", 80);
   textarea.focus();
 }, 100);
@@ -121,6 +130,7 @@ function commander(cmd) {
       }, 1);
       break;
     case "banner":
+      updateBanner(); // Update banner based on current screen size
       loopLines(banner, "", 80);
       break;
     // socials

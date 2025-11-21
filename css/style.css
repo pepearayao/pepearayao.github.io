@@ -3,11 +3,11 @@ body {
   padding: 15px 20px;
   min-height: 99%;
   width: 100%;
-  min-width: 550px;
   color: #519975;
   background: #211D1B;
   font-family: cursor, monospace;
   overflow-x: hidden;
+  font-size: 16px;
 }
 ::selection {
   color: #211830;
@@ -80,8 +80,8 @@ p {
   line-height: 1.3em;
   margin: 0;
   overflow: hidden;
-  white-space: nowrap;
-  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
   letter-spacing: 0.05em;
   animation: typing 0.5s steps(30, end);
 }
@@ -131,9 +131,109 @@ a:focus {
 }
 
 .small-print {
-  font-size: 70%; /* 100% - 40% = 60% */
+  font-size: 70%;
   position: fixed;
   bottom: 0;
   left: 0;
   padding:10px;
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+
+/* Tablet (medium screens) */
+@media screen and (max-width: 1024px) {
+  body {
+    font-size: 15px;
+    padding: 12px 15px;
+  }
+
+  #liner::before {
+    content: "visitor@pepe:~$";
+  }
+
+  .small-print {
+    font-size: 65%;
+    padding: 8px;
+  }
+}
+
+/* Mobile (small screens) */
+@media screen and (max-width: 768px) {
+  body {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+
+  #liner::before {
+    content: "~$";
+  }
+
+  #command {
+    height: auto;
+    min-height: 30px;
+  }
+
+  .cursor {
+    font-size: 11px;
+    width: 8px;
+    max-width: 8px;
+  }
+
+  p {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .margin {
+    margin-left: 10px;
+  }
+
+  .small-print {
+    font-size: 60%;
+    padding: 6px;
+    position: relative;
+    margin-top: 20px;
+  }
+
+  a {
+    word-break: break-all;
+  }
+}
+
+/* Extra small mobile devices */
+@media screen and (max-width: 480px) {
+  body {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+
+  #liner::before {
+    content: "$";
+  }
+
+  .cursor {
+    font-size: 10px;
+    width: 7px;
+    max-width: 7px;
+  }
+
+  .margin {
+    margin-left: 5px;
+  }
+
+  .small-print {
+    font-size: 55%;
+  }
+}
+
+/* Landscape mobile orientation */
+@media screen and (max-width: 768px) and (orientation: landscape) {
+  body {
+    padding: 8px 10px;
+  }
+
+  #liner::before {
+    content: "$";
+  }
 }
