@@ -3,7 +3,7 @@ body {
   padding: 15px 20px;
   min-height: 99%;
   width: 100%;
-  min-width: 550px;
+  min-width: 320px;
   color: #519975;
   background: #211D1B;
   font-family: cursor, monospace;
@@ -136,4 +136,173 @@ a:focus {
   bottom: 0;
   left: 0;
   padding:10px;
+}
+
+/* Mobile Optimizations */
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  body {
+    padding: 10px;
+    padding-bottom: 70px;
+    height: 100vh;
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+  }
+
+  .mobile-only {
+    display: block;
+  }
+
+  /* Make terminal scrollable within viewport */
+  #terminal {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    bottom: 130px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Keep textarea hidden but ensure mobile focus works */
+  textarea {
+    position: fixed !important;
+    left: -9999px !important;
+    top: 0 !important;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Make #command look like an interactive input field */
+  #command {
+    position: fixed;
+    bottom: 70px;
+    left: 10px;
+    right: 10px;
+    min-height: 44px;
+    padding: 10px 12px;
+    background: #211D1B;
+    border: none;
+    cursor: text;
+    z-index: 100;
+  }
+
+  #command:active {
+    background: rgba(81, 153, 117, 0.03);
+  }
+
+  /* Remove underlines from bold tags on mobile */
+  b {
+    text-decoration: none;
+  }
+
+  /* Disable typing animation on mobile to prevent jumping */
+  p {
+    animation: none !important;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  /* Only wrap regular text, not ASCII art */
+  p.color2, p.margin, p.error, p.no-animation {
+    white-space: pre-wrap !important;
+    word-wrap: break-word;
+    overflow-x: visible;
+  }
+
+  /* Consistent font size for everything */
+  body {
+    font-size: 14px;
+  }
+
+  #terminal p,
+  #liner,
+  #typer,
+  #command,
+  .cursor {
+    font-size: 14px;
+    line-height: 1.4em;
+  }
+
+  .cursor {
+    width: 10px;
+    height: 1.4em;
+  }
+
+  /* Mobile helpers UI - centered at bottom */
+  #mobile-helpers {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #quick-commands {
+    display: flex;
+    gap: 12px;
+  }
+
+  .quick-cmd, #toggle-keyboard {
+    background: rgba(81, 153, 117, 0.9);
+    color: #211830;
+    border: none;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .quick-cmd:active, #toggle-keyboard:active {
+    transform: scale(0.95);
+    background: rgba(115, 171, 173, 0.9);
+  }
+
+  #toggle-keyboard {
+    font-size: 24px;
+  }
+
+  /* Adjust small print for mobile */
+  .small-print {
+    position: static;
+    margin-top: 20px;
+    font-size: 60%;
+  }
+
+  /* Touch-friendly links */
+  a {
+    display: inline-block;
+    padding: 8px 4px;
+    min-height: 44px;
+    line-height: 28px;
+  }
+
+  /* Safe area support for notched devices */
+  body {
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-bottom: max(80px, env(safe-area-inset-bottom));
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+  }
+
+  #mobile-helpers {
+    bottom: max(10px, env(safe-area-inset-bottom));
+    right: max(10px, env(safe-area-inset-right));
+  }
 }

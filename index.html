@@ -13,7 +13,7 @@
     </script> -->
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <title>Pepe Araya | Terminal</title>
     <link rel="stylesheet" type="text/css" media="screen" href="css/style.css" />
     <link rel="icon" type="image/x-icon" href="img/fav-icon.png" />
@@ -36,6 +36,16 @@
         <span id="typer"></span><b class="cursor" id="cursor">█</b>
       </div>
     </div>
+
+    <!-- Mobile UI Helpers -->
+    <div id="mobile-helpers" class="mobile-only">
+      <div id="quick-commands">
+        <button class="quick-cmd" data-cmd="help" aria-label="Help" title="Help">?</button>
+        <button class="quick-cmd" data-cmd="clear" aria-label="Clear" title="Clear">✕</button>
+      </div>
+      <button id="toggle-keyboard" aria-label="Toggle keyboard" title="Toggle keyboard">⌨️</button>
+    </div>
+
     <script src="js/caret.js"></script>
     <script src="js/commands.js"></script>
     <script src="js/main.js"></script>

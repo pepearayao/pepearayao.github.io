@@ -9,9 +9,18 @@ var pw = false;
 let pwd = false;
 var commands = [];
 
+// Mobile detection
+var isMobile = window.innerWidth <= 768;
+
 setTimeout(function() {
-  loopLines(banner, "", 80);
-  textarea.focus();
+  // Show mobile or desktop banner
+  var bannerToShow = isMobile ? banner_mobile : banner;
+  loopLines(bannerToShow, "", 80);
+
+  // Only auto-focus on desktop
+  if (!isMobile) {
+    textarea.focus();
+  }
 }, 100);
 
 window.addEventListener("keyup", enterKey);
@@ -102,6 +111,9 @@ function commander(cmd) {
     case "projects":
       loopLines(projects, "color2 margin", 80);
       break;
+    case "skills":
+      loopLines(skills, "color2 margin", 80);
+      break;
     case "password":
       addLine("<span class=\"inherit\"> Lol! You're joking, right? You\'re gonna have to try harder than that!ðŸ˜‚</span>", "error", 100);
       break;
@@ -111,7 +123,7 @@ function commander(cmd) {
       addLine("<br>", "command", 80 * commands.length + 50);
       break;
     case "email":
-      addLine('Opening mailto:<a href="mailto:pepearayao@gmail.com">pepearayao@gmail.com</a>...', "color2", 80);
+      addLine('Opening mailto:<a href="mailto:hola@pepearayao.com">hola@pepearayao.com</a>...', "color2", 80);
       newTab(email);
       break;
     case "clear":
@@ -182,7 +194,11 @@ function addLine(text, style, time) {
 
     before.parentNode.insertBefore(next, before);
 
-    window.scrollTo(0, document.body.offsetHeight);
+    if (isMobile) {
+      terminal.scrollTop = terminal.scrollHeight;
+    } else {
+      window.scrollTo(0, document.body.offsetHeight);
+    }
   }, time);
 }
 
@@ -197,4 +213,57 @@ function downloadFile(url, fileName) {
   link.href = url;
   link.download = fileName;
   link.click();
+}
+
+// Mobile interactions
+if (isMobile) {
+  // Wait for DOM to be ready
+  window.addEventListener('DOMContentLoaded', function() {
+    var commandDiv = document.getElementById('command');
+    var toggleBtn = document.getElementById('toggle-keyboard');
+
+    // Keyboard toggle button
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', function() {
+        if (document.activeElement === textarea) {
+          textarea.blur();
+          this.textContent = '⌨️';
+        } else {
+          textarea.focus();
+          this.textContent = '✕';
+        }
+      });
+    }
+
+    // Quick command buttons
+    var quickCmds = document.querySelectorAll('.quick-cmd');
+    quickCmds.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var cmd = this.getAttribute('data-cmd');
+        if (cmd) {
+          commands.push(cmd);
+          git = commands.length;
+          addLine("visitor@pepearayao.com:~$ " + cmd, "no-animation", 0);
+          commander(cmd.toLowerCase());
+        }
+      });
+    });
+
+    // Update toggle button icon when keyboard shows/hides
+    textarea.addEventListener('focus', function() {
+      if (toggleBtn) toggleBtn.textContent = '✕';
+      // Scroll terminal to bottom
+      setTimeout(function() {
+        terminal.scrollTop = terminal.scrollHeight;
+        // Ensure command is visible
+        if (commandDiv) {
+          commandDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      }, 300);
+    });
+
+    textarea.addEventListener('blur', function() {
+      if (toggleBtn) toggleBtn.textContent = '⌨️';
+    });
+  });
 }
