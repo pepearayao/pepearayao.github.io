@@ -869,16 +869,7 @@ const DEFAULT_PLANETS = [
   { id: 'planet_learning', name: 'Learning', color: '#aa66ff', orbitRadius: 46, orbitSpeed: 0.01 },
 ];
 
-const DEFAULT_NODES = [
-  { title: 'Learn Three.js basics', description: 'Official docs and examples', category: 'task', priority: 'high', planetId: 'planet_learning' },
-  { title: 'Morning meditation', description: '10 minutes of mindfulness', category: 'habit', priority: 'medium', planetId: 'planet_health' },
-  { title: 'App for tracking books', description: 'Simple reading list with progress', category: 'idea', priority: 'low', planetId: 'planet_projects' },
-  { title: 'Review weekly goals', description: 'Every Sunday evening', category: 'habit', priority: 'medium', planetId: 'planet_personal' },
-  { title: 'Fix login bug', description: 'Intermittent 401 errors', category: 'task', priority: 'high', planetId: 'planet_work' },
-  { title: 'Explore WebGPU', description: 'Next-gen graphics API', category: 'idea', priority: 'low', planetId: 'planet_learning' },
-  { title: 'Write journal entry', description: 'Reflect on the day', category: 'note', priority: 'low', planetId: 'planet_personal' },
-  { title: 'Drink 8 glasses of water', description: 'Stay hydrated', category: 'habit', priority: 'medium', planetId: 'planet_health' },
-];
+const DEFAULT_NODES = [];
 
 // ================================================================
 // CRYPTO MODULE
@@ -945,17 +936,28 @@ const GistSync = {
   async setup(pat, pin) {
     const test = await fetch('https://api.github.com/user', { headers: { 'Authorization': `token ${pat}` } });
     if (!test.ok) throw new Error('Invalid GitHub token');
-    const gistResp = await fetch('https://api.github.com/gists', {
-      method: 'POST',
-      headers: { 'Authorization': `token ${pat}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description: 'Cognitive Globe — encrypted data', public: false, files: { 'cognitive_globe.enc': { content: 'setup' } } })
-    });
-    if (!gistResp.ok) throw new Error('Failed to create gist');
-    const gist = await gistResp.json();
+    // Look for an existing cognitive globe gist to reuse across browsers
+    let gistId = null;
+    const listResp = await fetch('https://api.github.com/gists?per_page=100', { headers: { 'Authorization': `token ${pat}` } });
+    if (listResp.ok) {
+      const gists = await listResp.json();
+      const existing = gists.find(g => g.files && g.files['cognitive_globe.enc']);
+      if (existing) gistId = existing.id;
+    }
+    if (!gistId) {
+      const gistResp = await fetch('https://api.github.com/gists', {
+        method: 'POST',
+        headers: { 'Authorization': `token ${pat}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: 'Cognitive Globe — encrypted data', public: false, files: { 'cognitive_globe.enc': { content: 'setup' } } })
+      });
+      if (!gistResp.ok) throw new Error('Failed to create gist');
+      const gist = await gistResp.json();
+      gistId = gist.id;
+    }
     const encryptedPat = await CryptoSync.encrypt(pat, pin);
     const sessionKey = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
     const encryptedPin = await CryptoSync.encrypt(pin, sessionKey);
-    this.saveConfig({ gistId: gist.id, encryptedPat, pinHash: await CryptoSync.hash(pin), encryptedPin });
+    this.saveConfig({ gistId, encryptedPat, pinHash: await CryptoSync.hash(pin), encryptedPin });
     CryptoSync.setSessionCookie(sessionKey);
     _cachedPin = pin; _cachedPat = pat;
   },
@@ -1421,8 +1423,9 @@ function buildSolarSystem() {
     label.name = 'label';
     group.add(label);
 
-    // Position on orbit
-    const angle = Math.random() * Math.PI * 2;
+    // Position on orbit — preserve angle across rebuilds
+    if (planet._orbitAngle == null) planet._orbitAngle = Math.random() * Math.PI * 2;
+    const angle = planet._orbitAngle;
     group.position.set(planet.orbitRadius * Math.cos(angle), 0, planet.orbitRadius * Math.sin(angle));
     scene.add(group);
 
@@ -1736,6 +1739,7 @@ function animate() {
       const planet = state.planets.find(p => p.id === pid);
       if (!planet) return;
       entry.orbitAngle += planet.orbitSpeed * delta;
+      planet._orbitAngle = entry.orbitAngle;
       entry.group.position.x = planet.orbitRadius * Math.cos(entry.orbitAngle);
       entry.group.position.z = planet.orbitRadius * Math.sin(entry.orbitAngle);
       // Scale label to constant screen size regardless of distance
@@ -1755,7 +1759,8 @@ function animate() {
   if (viewMode === 'planet') {
     nodeMeshes.forEach((entry, id) => {
       const offset = id.charCodeAt(0) * 0.1;
-      entry.group.position.y += Math.sin(time * 0.5 + offset) * 0.0003;
+      if (entry._baseY == null) entry._baseY = entry.group.position.y;
+      entry.group.position.y = entry._baseY + Math.sin(time * 0.5 + offset) * 0.15;
 
       // Glow ring
       const ring = entry.group.getObjectByName('glow-ring');
@@ -2430,12 +2435,13 @@ function bootApp() {
     setSyncStatus('syncing');
     GistSync.pull(_cachedPin).then(remote => {
       if (remote?.nodes?.length > 0) {
+        const nodesChanged = JSON.stringify(state.nodes) !== JSON.stringify(remote.nodes);
         state.nodes = remote.nodes;
         state.planets = remote.planets || state.planets;
         state.nowNodeId = remote.nowNodeId || null;
         migrateState();
         saveStateLocal();
-        rebuildCurrentView();
+        if (nodesChanged) rebuildCurrentView();
         updateOverlay();
         updateInboxBadge();
       }
