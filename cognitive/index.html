@@ -220,16 +220,14 @@ canvas { display: block; touch-action: none; }
   z-index: 100;
   display: none;
 }
-#sectors-toggle-btn, #map-toggle-btn {
+#view-toggle-bar {
   position: fixed;
   bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 100;
-}
-#sectors-toggle-btn {
-  left: calc(50% - 64px);
-}
-#map-toggle-btn {
-  left: calc(50% + 64px);
+  display: flex;
+  gap: 8px;
 }
 
 /* ============================================================
@@ -597,7 +595,7 @@ canvas { display: block; touch-action: none; }
    ============================================================ */
 #shortcut-hint {
   position: fixed;
-  bottom: 28px;
+  bottom: 8px;
   left: 50%;
   transform: translateX(-50%);
   font-size: 11px;
@@ -644,7 +642,7 @@ canvas { display: block; touch-action: none; }
   #inbox-badge { bottom: 16px; left: 16px; }
   #shortcut-hint { display: none; }
   #back-to-solar-btn { top: auto; bottom: 80px; left: 16px; }
-  #sectors-toggle-btn, #map-toggle-btn { bottom: 80px; }
+  #view-toggle-bar { bottom: 80px; }
 }
 </style>
 </head>
@@ -700,11 +698,11 @@ canvas { display: block; touch-action: none; }
 <!-- Back to Solar System Button -->
 <button class="ctrl-btn" id="back-to-solar-btn">&#x2190; Solar System</button>
 
-<!-- Sectors View Toggle Button -->
-<button class="ctrl-btn" id="sectors-toggle-btn" title="Toggle Sectors view (S)">&#x25d4; Sectors</button>
-
-<!-- Map View Toggle Button -->
-<button class="ctrl-btn" id="map-toggle-btn" title="Toggle 2D Map view (M)">&#x25a6; Map</button>
+<!-- View Toggle Bar -->
+<div id="view-toggle-bar">
+  <button class="ctrl-btn" id="sectors-toggle-btn" title="Toggle Sectors view (S)">&#x25d4; Sectors</button>
+  <button class="ctrl-btn" id="map-toggle-btn" title="Toggle 2D Map view (M)">&#x25a6; Map</button>
+</div>
 
 <!-- Floating Add Button -->
 <button id="add-btn" title="Add node (N)">+</button>
