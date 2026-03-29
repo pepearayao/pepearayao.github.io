@@ -48,7 +48,8 @@ function enterKey(e) {
       pw = false;
       liner.classList.remove("password");
     } else if (e.keyCode == 13) {
-      addLine("Wrong password", "error", 0);
+      var wrongPwMsgs = { en: "Wrong password", es: "Contrase\u00F1a incorrecta", de: "Falsches Passwort" };
+      addLine(wrongPwMsgs[currentLang] || wrongPwMsgs.en, "error", 0);
       command.innerHTML = "";
       textarea.value = "";
       pw = false;
@@ -91,12 +92,9 @@ function commander(cmd) {
     case "whoami":
       loopLines(whoami, "color2 margin", 80);
       break;
-    case "video":
-      addLine("Opening YouTube...", "color2", 80);
-      newTab(youtube);
-      break;
     case "sudo":
-      addLine("Oh no, you're not admin...", "color2", 80);
+      var sudoMsgs = { en: "Oh no, you're not admin...", es: "Oh no, no eres admin...", de: "Oh nein, du bist kein Admin..." };
+      addLine(sudoMsgs[currentLang] || sudoMsgs.en, "color2", 80);
       setTimeout(function() {
         window.open('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
       }, 1000);
@@ -115,7 +113,12 @@ function commander(cmd) {
       loopLines(skills, "color2 margin", 80);
       break;
     case "password":
-      addLine("<span class=\"inherit\"> Lol! You're joking, right? You\'re gonna have to try harder than that!ðŸ˜‚</span>", "error", 100);
+      var pwMsgs = {
+        en: "<span class=\"inherit\"> Lol! You're joking, right? You're gonna have to try harder than that!</span>",
+        es: "<span class=\"inherit\"> Jaja! Es en serio? Vas a tener que esforzarte m\u00E1s!</span>",
+        de: "<span class=\"inherit\"> Haha! Das ist ein Witz, oder? Da musst du dir mehr M\u00FChe geben!</span>"
+      };
+      addLine(pwMsgs[currentLang] || pwMsgs.en, "error", 100);
       break;
     case "history":
       addLine("<br>", "", 0);
@@ -123,7 +126,8 @@ function commander(cmd) {
       addLine("<br>", "command", 80 * commands.length + 50);
       break;
     case "email":
-      addLine('Opening mailto:<a href="mailto:hola@pepearayao.com">hola@pepearayao.com</a>...', "color2", 80);
+      var emailMsgs = { en: "Opening ", es: "Abriendo ", de: "\u00D6ffne " };
+      addLine((emailMsgs[currentLang] || emailMsgs.en) + 'mailto:<a href="mailto:hola@pepearayao.com">hola@pepearayao.com</a>...', "color2", 80);
       newTab(email);
       break;
     case "clear":
@@ -136,37 +140,39 @@ function commander(cmd) {
       loopLines(banner, "", 80);
       break;
     // socials
-    case "youtube":
-      addLine("Opening YouTube...", "color2", 80);
-      newTab(youtube);
-      break;
-    case "twitter":
-      addLine("Opening Twitter...", "color2", 0);
-      newTab(twitter);
-      break;
     case "linkedin":
       addLine("Opening LinkedIn...", "color2", 0);
       newTab(linkedin);
-      break;
-    case "instagram":
-      addLine("Opening Instagram...", "color2", 0);
-      newTab(instagram);
       break;
     case "github":
       addLine("Opening GitHub...", "color2", 0);
       newTab(github);
       break;
-    case "whatsapp":
-      addLine("Opening WhatsApp...", "color2", 0);
-      newTab(whatsapp);
-      break;
     case "resume":
-      addLine('Downloading resume...', 'color2', 80);
-      // Replace 'your_resume_link.pdf' with the actual link to your resume
+      var resumeMsgs = { en: "Downloading resume...", es: "Descargando CV...", de: "Lebenslauf wird heruntergeladen..." };
+      addLine(resumeMsgs[currentLang] || resumeMsgs.en, 'color2', 80);
       downloadFile('assets/pepe_araya_resume.pdf', 'Pepe_Araya_Resume.pdf');
       break;
     default:
-      addLine("<span class=\"inherit\">Command not found. For a list of commands, type <span class=\"command\">'help'</span>.</span>", "error", 100);
+      // Handle "lang en" / "lang es"
+      if (cmd.startsWith("lang ")) {
+        var lang = cmd.split(" ")[1];
+        if (lang === "en" || lang === "es" || lang === "de") {
+          switchLang(lang);
+          var msgs = { en: "Language switched to English.", es: "Idioma cambiado a Espa\u00F1ol.", de: "Sprache auf Deutsch umgestellt." };
+          addLine(msgs[lang], "color2", 80);
+        } else {
+          addLine("<span class=\"inherit\">Usage: lang en | lang es | lang de</span>", "error", 100);
+        }
+        break;
+      }
+      var errMsgs = {
+        en: "<span class=\"inherit\">Command not found. For a list of commands, type <span class=\"command\">'help'</span>.</span>",
+        es: "<span class=\"inherit\">Comando no encontrado. Para ver los comandos, escribe <span class=\"command\">'help'</span>.</span>",
+        de: "<span class=\"inherit\">Befehl nicht gefunden. F\u00FCr eine Liste der Befehle, tippe <span class=\"command\">'help'</span>.</span>"
+      };
+      var errMsg = errMsgs[currentLang] || errMsgs.en;
+      addLine(errMsg, "error", 100);
       break;
   }
 }

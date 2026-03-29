@@ -15,14 +15,19 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <title>Pepe Araya | Terminal</title>
+    <meta name="description" content="Pepe Araya — Tradecraft Engineering Manager at Maltego Technologies. Python, OSINT, web scraping, and full-stack builder." />
+    <meta property="og:title" content="Pepe Araya | Terminal" />
+    <meta property="og:description" content="Interactive terminal portfolio — type 'help' to explore." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" type="text/css" media="screen" href="css/style.css" />
-    <link rel="icon" type="image/x-icon" href="img/fav-icon.png" />
   </head>
-  <body>
+  <body onclick="document.getElementById('texter').focus();">
     <div id="terminal">
       <a id="before"></a>
     </div>
-    <div id="command" onclick="$('texter').focus();">
+    <div id="command">
       <textarea
         type="text"
         id="texter"
