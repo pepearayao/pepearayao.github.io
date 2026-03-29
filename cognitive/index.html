@@ -220,6 +220,13 @@ canvas { display: block; touch-action: none; }
   z-index: 100;
   display: none;
 }
+#sectors-toggle-btn {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+}
 
 /* ============================================================
    QUICK ADD BAR (bottom)
@@ -633,6 +640,7 @@ canvas { display: block; touch-action: none; }
   #inbox-badge { bottom: 16px; left: 16px; }
   #shortcut-hint { display: none; }
   #back-to-solar-btn { top: auto; bottom: 80px; left: 16px; }
+  #sectors-toggle-btn { bottom: 80px; }
 }
 </style>
 </head>
@@ -687,6 +695,9 @@ canvas { display: block; touch-action: none; }
 
 <!-- Back to Solar System Button -->
 <button class="ctrl-btn" id="back-to-solar-btn">&#x2190; Solar System</button>
+
+<!-- Sectors View Toggle Button -->
+<button class="ctrl-btn" id="sectors-toggle-btn" title="Toggle Sectors view (S)">&#x25d4; Sectors</button>
 
 <!-- Floating Add Button -->
 <button id="add-btn" title="Add node (N)">+</button>
@@ -812,7 +823,7 @@ canvas { display: block; touch-action: none; }
 </div>
 
 <!-- Keyboard Shortcut Hint -->
-<div id="shortcut-hint">N: add &bull; L: list &bull; Ctrl+Z: undo &bull; Esc: close</div>
+<div id="shortcut-hint">N: add &bull; L: list &bull; S: sectors &bull; Ctrl+Z: undo &bull; Esc: close</div>
 
 <!-- Lock Screen -->
 <div id="lock-screen">
@@ -1141,7 +1152,8 @@ function addNode(data, toInbox = false) {
   };
   state.nodes.push(node);
   saveState();
-  if (viewMode === 'planet' && node.planetId === currentPlanetId && !toInbox) addNodeToScene(node);
+  if (viewMode === 'sectors' && !toInbox) addNodeToSceneSectors(node);
+  else if (viewMode === 'planet' && node.planetId === currentPlanetId && !toInbox) addNodeToScene(node);
   updateOverlay();
   updateInboxBadge();
   return node;
@@ -1154,7 +1166,7 @@ function updateNode(id, updates) {
   Object.assign(node, updates);
   node.history.push({ action: 'edited', date: Date.now(), details: Object.keys(updates).join(', ') });
   saveState();
-  if (viewMode === 'planet') updateNodeVisual(node);
+  if (viewMode === 'planet' || viewMode === 'sectors') updateNodeVisual(node);
   updateOverlay();
 }
 
@@ -1173,9 +1185,9 @@ function toggleActive(id) {
     node.history.push({ action: 'activated', date: Date.now() });
   }
   saveState();
-  if (viewMode === 'planet') updateNodeVisual(node);
+  if (viewMode === 'planet' || viewMode === 'sectors') updateNodeVisual(node);
   updateOverlay();
-  if (viewMode === 'planet') updateConnectionLines();
+  if (viewMode === 'planet' || viewMode === 'sectors') updateConnectionLines();
   if (viewMode === 'solar') updateCrossPlanetLines();
 }
 
@@ -1187,7 +1199,7 @@ function markDone(id) {
   if (state.nowNodeId === id) state.nowNodeId = null;
   node.history.push({ action: 'done', date: Date.now() });
   saveState();
-  if (viewMode === 'planet') fadeOutNode(id);
+  if (viewMode === 'planet' || viewMode === 'sectors') fadeOutNode(id);
   recordDoneToday(node.title);
   updateOverlay();
   showToast(`"${node.title}" done!`, 'success');
@@ -1201,7 +1213,7 @@ function archiveNode(id) {
   if (state.nowNodeId === id) state.nowNodeId = null;
   node.history.push({ action: 'archived', date: Date.now() });
   saveState();
-  if (viewMode === 'planet') fadeOutNode(id);
+  if (viewMode === 'planet' || viewMode === 'sectors') fadeOutNode(id);
   updateOverlay();
   showToast(`"${node.title}" archived`, 'success');
 }
@@ -1213,7 +1225,8 @@ function restoreNode(id) {
   node.status = 'inactive';
   node.history.push({ action: 'restored', date: Date.now() });
   saveState();
-  if (viewMode === 'planet' && node.planetId === currentPlanetId) addNodeToScene(node);
+  if (viewMode === 'sectors') addNodeToSceneSectors(node);
+  else if (viewMode === 'planet' && node.planetId === currentPlanetId) addNodeToScene(node);
   updateOverlay();
   showToast(`"${node.title}" restored`, 'success');
 }
@@ -1225,7 +1238,7 @@ function moveFromInbox(id) {
   node.status = 'inactive';
   node.history.push({ action: 'moved from inbox', date: Date.now() });
   saveState();
-  if (viewMode === 'planet') updateNodeVisual(node);
+  if (viewMode === 'planet' || viewMode === 'sectors') updateNodeVisual(node);
   updateOverlay();
   updateInboxBadge();
 }
@@ -1246,7 +1259,7 @@ function applyNow(nodeId) {
   const oldNow = state.nowNodeId;
   state.nowNodeId = nodeId;
   saveState();
-  if (viewMode === 'planet') {
+  if (viewMode === 'planet' || viewMode === 'sectors') {
     if (oldNow) { const on = state.nodes.find(n => n.id === oldNow); if (on) updateNodeVisual(on); }
     const nn = state.nodes.find(n => n.id === nodeId); if (nn) updateNodeVisual(nn);
   }
@@ -1258,7 +1271,7 @@ function clearNow() {
   const old = state.nowNodeId;
   state.nowNodeId = null;
   saveState();
-  if (viewMode === 'planet' && old) { const on = state.nodes.find(n => n.id === old); if (on) updateNodeVisual(on); }
+  if ((viewMode === 'planet' || viewMode === 'sectors') && old) { const on = state.nodes.find(n => n.id === old); if (on) updateNodeVisual(on); }
   updateOverlay();
   stopPomodoro();
   updateTimerVisibility();
@@ -1336,8 +1349,10 @@ let solarCenterMesh = null;
 let orbitRings = [];
 let wireframeGlobe = null;
 
-let viewMode = 'solar'; // 'solar' | 'planet'
+let viewMode = 'solar'; // 'solar' | 'planet' | 'sectors'
 let currentPlanetId = null;
+let sectorDividers = [];
+let sectorLabels = [];
 
 // Camera animation
 let cameraAnimating = false;
@@ -1515,6 +1530,171 @@ function zoomOutToSolar() {
   });
 }
 
+// ================================================================
+// SECTORS VIEW
+// ================================================================
+function getNodeWorldPositionForSector(node) {
+  const idx = state.planets.findIndex(p => p.id === node.planetId);
+  const N = state.planets.length;
+  if (idx < 0 || N === 0) return { x: node.position.x, y: node.position.y, z: node.position.z };
+  const sectorStart = (idx / N) * Math.PI * 2;
+  const sectorSize = (1 / N) * Math.PI * 2;
+  const r = Math.sqrt(node.position.x ** 2 + node.position.y ** 2 + node.position.z ** 2);
+  const storedAngle = Math.atan2(node.position.z, node.position.x);
+  const t = ((storedAngle / (Math.PI * 2)) % 1 + 1) % 1;
+  const mappedAngle = sectorStart + t * sectorSize * 0.8 + sectorSize * 0.1;
+  return { x: r * Math.cos(mappedAngle), y: node.position.y, z: r * Math.sin(mappedAngle) };
+}
+
+function buildSectorsView() {
+  viewMode = 'sectors';
+  currentPlanetId = null;
+
+  // Wireframe globe at center
+  const globeGeo = new THREE.SphereGeometry(5, 48, 48);
+  const globeMat = new THREE.MeshBasicMaterial({ color: 0x1a1a3a, wireframe: true, transparent: true, opacity: 0.06 });
+  wireframeGlobe = new THREE.Mesh(globeGeo, globeMat);
+  scene.add(wireframeGlobe);
+
+  const N = state.planets.length;
+
+  // Sector divider planes
+  for (let i = 0; i < N; i++) {
+    const angle = (i / N) * Math.PI * 2;
+    const planeGeo = new THREE.PlaneGeometry(7, 14);
+    const planeMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(state.planets[i].color),
+      transparent: true, opacity: 0.06, side: THREE.DoubleSide
+    });
+    const plane = new THREE.Mesh(planeGeo, planeMat);
+    plane.rotation.y = angle;
+    scene.add(plane);
+    sectorDividers.push(plane);
+  }
+
+  // Sector labels
+  for (let i = 0; i < N; i++) {
+    const planet = state.planets[i];
+    const midAngle = ((i + 0.5) / N) * Math.PI * 2;
+    const label = createTextSprite(planet.name, false, planet.color);
+    label.position.set(6.5 * Math.cos(midAngle), 4, 6.5 * Math.sin(midAngle));
+    scene.add(label);
+    sectorLabels.push(label);
+  }
+
+  // Add all visible nodes
+  getVisibleNodes().forEach(node => addNodeToSceneSectors(node));
+  updateConnectionLines();
+
+  // Camera
+  const camPos = new THREE.Vector3(0, 5, 14);
+  const origin = new THREE.Vector3(0, 0, 0);
+  animateCamera(camPos, origin, 1.2, () => {
+    controls.minDistance = 6;
+    controls.maxDistance = 30;
+  });
+
+  // UI
+  document.getElementById('back-to-solar-btn').style.display = 'none';
+  document.getElementById('sectors-toggle-btn').textContent = '\u25d4 Solar';
+  document.getElementById('sectors-toggle-btn').classList.add('active-btn');
+}
+
+function addNodeToSceneSectors(node) {
+  if (nodeMeshes.has(node.id)) return;
+  const group = new THREE.Group();
+  const size = getNodeSize(node);
+  const color = getNodeColor(node);
+
+  // Sphere
+  const geo = new THREE.SphereGeometry(size, 16, 16);
+  const mat = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.3, transparent: true, opacity: node.status === 'inbox' ? 0.6 : 0.9 });
+  const sphere = new THREE.Mesh(geo, mat);
+  sphere.userData = { nodeId: node.id };
+  group.add(sphere);
+
+  // Glow ring for active
+  if (node.status === 'active') {
+    const isNow = node.id === state.nowNodeId;
+    const ringSize = isNow ? size * 2.2 : size * 1.5;
+    const ringGeo = new THREE.RingGeometry(ringSize * 0.85, ringSize, 32);
+    const ringColor = isNow ? 0xffcc33 : 0x00ff88;
+    const ringMat = new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: isNow ? 0.35 : 0.2, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.name = 'glow-ring';
+    group.add(ring);
+  }
+
+  // Mode badge
+  if (node.mode && MODE_COLORS[node.mode]) {
+    const badgeGeo = new THREE.SphereGeometry(0.06, 8, 8);
+    const badgeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(MODE_COLORS[node.mode]) });
+    const badge = new THREE.Mesh(badgeGeo, badgeMat);
+    badge.position.set(size + 0.12, -size * 0.5, 0);
+    badge.name = 'mode-badge';
+    group.add(badge);
+  }
+
+  // Text label
+  const label = createTextSprite(node.title, node.status === 'active');
+  label.position.set(0, size + 0.25, 0);
+  label.name = 'label';
+  group.add(label);
+
+  // Mobile hit area
+  if (isMobile) {
+    const hitGeo = new THREE.SphereGeometry(size * 2.5, 8, 8);
+    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+    const hitSphere = new THREE.Mesh(hitGeo, hitMat);
+    hitSphere.userData = { nodeId: node.id };
+    hitSphere.name = 'hit-area';
+    group.add(hitSphere);
+  }
+
+  // Position within sector
+  const pos = getNodeWorldPositionForSector(node);
+  group.position.set(pos.x, pos.y, pos.z);
+
+  scene.add(group);
+  nodeMeshes.set(node.id, { sphere, label, group, node });
+}
+
+function teardownSectorsView() {
+  nodeMeshes.forEach(entry => scene.remove(entry.group));
+  nodeMeshes.clear();
+  connectionLines.forEach(l => scene.remove(l));
+  connectionLines = [];
+  sectorDividers.forEach(d => scene.remove(d));
+  sectorDividers = [];
+  sectorLabels.forEach(l => scene.remove(l));
+  sectorLabels = [];
+  if (wireframeGlobe) { scene.remove(wireframeGlobe); wireframeGlobe = null; }
+  document.getElementById('sectors-toggle-btn').textContent = '\u25d4 Sectors';
+  document.getElementById('sectors-toggle-btn').classList.remove('active-btn');
+}
+
+function switchToSectorsView() {
+  if (viewMode === 'planet') teardownPlanetView();
+  if (viewMode === 'solar') {
+    // Clear solar system
+    planetMeshes.forEach(e => scene.remove(e.group));
+    planetMeshes.clear();
+    orbitRings.forEach(r => scene.remove(r));
+    orbitRings = [];
+    crossPlanetLines.forEach(l => scene.remove(l));
+    crossPlanetLines = [];
+    if (solarCenterMesh) { scene.remove(solarCenterMesh); solarCenterMesh = null; }
+  }
+  buildSectorsView();
+}
+
+function switchFromSectorsToSolar() {
+  teardownSectorsView();
+  viewMode = 'solar';
+  currentPlanetId = null;
+  buildSolarSystem();
+}
+
 function rebuildCurrentView() {
   // Clear everything
   nodeMeshes.forEach(e => scene.remove(e.group));
@@ -1529,8 +1709,14 @@ function rebuildCurrentView() {
   orbitRings = [];
   if (solarCenterMesh) { scene.remove(solarCenterMesh); solarCenterMesh = null; }
   if (wireframeGlobe) { scene.remove(wireframeGlobe); wireframeGlobe = null; }
+  sectorDividers.forEach(d => scene.remove(d));
+  sectorDividers = [];
+  sectorLabels.forEach(l => scene.remove(l));
+  sectorLabels = [];
 
-  if (viewMode === 'planet' && currentPlanetId) {
+  if (viewMode === 'sectors') {
+    buildSectorsView();
+  } else if (viewMode === 'planet' && currentPlanetId) {
     buildSolarSystem();
     buildPlanetView(currentPlanetId);
   } else {
@@ -1638,13 +1824,19 @@ function createTextSprite(text, isActive, colorHex) {
 function updateNodeVisual(node) {
   const entry = nodeMeshes.get(node.id);
   if (!entry) {
-    if (node.status !== 'archived' && node.status !== 'done' && viewMode === 'planet' && node.planetId === currentPlanetId) addNodeToScene(node);
+    if (node.status !== 'archived' && node.status !== 'done') {
+      if (viewMode === 'sectors') addNodeToSceneSectors(node);
+      else if (viewMode === 'planet' && node.planetId === currentPlanetId) addNodeToScene(node);
+    }
     return;
   }
   // Remove old and re-add (simplest for all the visual states)
   scene.remove(entry.group);
   nodeMeshes.delete(node.id);
-  if (node.status !== 'archived' && node.status !== 'done') addNodeToScene(node);
+  if (node.status !== 'archived' && node.status !== 'done') {
+    if (viewMode === 'sectors') addNodeToSceneSectors(node);
+    else addNodeToScene(node);
+  }
   updateConnectionLines();
 }
 
@@ -1779,6 +1971,60 @@ function animate() {
       // Label fade with distance
       const dist = camera.position.distanceTo(entry.group.position);
       if (entry.label.material) entry.label.material.opacity = Math.max(0, Math.min(1, 1 - (dist - 6) / 12));
+    });
+
+    // Connection lines update
+    if (connectionLines.length > 0) {
+      const activeNodes = getActiveNodes();
+      let idx = 0;
+      for (let i = 0; i < activeNodes.length; i++) {
+        for (let j = i + 1; j < activeNodes.length; j++) {
+          if (idx >= connectionLines.length) break;
+          const a = nodeMeshes.get(activeNodes[i].id);
+          const b = nodeMeshes.get(activeNodes[j].id);
+          if (a && b) {
+            const pos = connectionLines[idx].geometry.attributes.position;
+            pos.setXYZ(0, a.group.position.x, a.group.position.y, a.group.position.z);
+            pos.setXYZ(1, b.group.position.x, b.group.position.y, b.group.position.z);
+            pos.needsUpdate = true;
+          }
+          idx++;
+        }
+      }
+    }
+  }
+
+  // Sectors view: node floating + labels + connection lines
+  if (viewMode === 'sectors') {
+    nodeMeshes.forEach((entry, id) => {
+      const offset = id.charCodeAt(0) * 0.1;
+      if (entry._baseY == null) entry._baseY = entry.group.position.y;
+      entry.group.position.y = entry._baseY + Math.sin(time * 0.5 + offset) * 0.15;
+
+      // Glow ring
+      const ring = entry.group.getObjectByName('glow-ring');
+      if (ring) {
+        ring.lookAt(camera.position);
+        const isNow = entry.node.id === state.nowNodeId;
+        if (isNow) {
+          ring.material.opacity = 0.2 + Math.sin(time * 3 + offset) * 0.15;
+          const scale = 1.0 + Math.sin(time * 2) * 0.15;
+          ring.scale.set(scale, scale, 1);
+        } else {
+          ring.material.opacity = 0.15 + Math.sin(time * 2 + offset) * 0.08;
+        }
+      }
+
+      // Label fade with distance
+      const dist = camera.position.distanceTo(entry.group.position);
+      if (entry.label.material) entry.label.material.opacity = Math.max(0, Math.min(1, 1 - (dist - 6) / 12));
+    });
+
+    // Sector labels: constant screen size
+    sectorLabels.forEach(label => {
+      const dist = camera.position.distanceTo(label.position);
+      const scale = dist * 0.04;
+      label.scale.set(scale, scale * 0.3, 1);
     });
 
     // Connection lines update
@@ -2057,7 +2303,7 @@ document.getElementById('list-close-btn').addEventListener('click', closeListVie
 });
 
 function filterGlobeNodes() {
-  if (viewMode !== 'planet') return;
+  if (viewMode !== 'planet' && viewMode !== 'sectors') return;
   const search = document.getElementById('search-input').value.toLowerCase();
   const catFilter = document.getElementById('filter-category').value;
   const statusFilter = document.getElementById('filter-status').value;
@@ -2136,6 +2382,12 @@ document.getElementById('done-today').addEventListener('click', () => {
 
 // Back to solar
 document.getElementById('back-to-solar-btn').addEventListener('click', zoomOutToSolar);
+
+// Sectors toggle
+document.getElementById('sectors-toggle-btn').addEventListener('click', () => {
+  if (viewMode === 'sectors') switchFromSectorsToSolar();
+  else switchToSectorsView();
+});
 
 // ================================================================
 // POMODORO TIMER
@@ -2233,7 +2485,7 @@ function raycastFromPoint(clientX, clientY) {
     });
     const intersects = raycaster.intersectObjects(targets);
     return intersects.length > 0 ? { type: 'planet', id: intersects[0].object.userData.planetId } : null;
-  } else {
+  } else if (viewMode === 'sectors' || viewMode === 'planet') {
     const targets = [];
     nodeMeshes.forEach(entry => {
       targets.push(entry.sphere);
@@ -2347,8 +2599,9 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openQuickAdd(); }
   else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); document.getElementById('list-view').classList.contains('visible') ? closeListView() : openListView(); }
+  else if (e.key === 's' || e.key === 'S') { e.preventDefault(); if (viewMode === 'sectors') switchFromSectorsToSolar(); else switchToSectorsView(); }
   else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); }
-  else if (e.key === 'Escape') { closeQuickAdd(); closeSidePanel(); closeListView(); closePlanetManager(); if (viewMode === 'planet') zoomOutToSolar(); }
+  else if (e.key === 'Escape') { closeQuickAdd(); closeSidePanel(); closeListView(); closePlanetManager(); if (viewMode === 'planet') zoomOutToSolar(); else if (viewMode === 'sectors') switchFromSectorsToSolar(); }
   else if (e.key === 'Backspace' && viewMode === 'planet') { zoomOutToSolar(); }
 });
 
