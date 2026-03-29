@@ -1360,9 +1360,6 @@ let viewMode = 'solar'; // 'solar' | 'planet' | 'sectors' | 'map'
 let currentPlanetId = null;
 let sectorDividers = [];
 let sectorLabels = [];
-let mapClusterLines = [];
-let mapClusterLabels = [];
-let mapClusterCircles = [];
 
 // Camera animation
 let cameraAnimating = false;
@@ -1712,172 +1709,327 @@ function switchFromSectorsToSolar() {
 }
 
 // ================================================================
-// MAP VIEW (2D mind map)
+// MAP VIEW (2D bubble diagram)
 // ================================================================
-function getMapClusterPositions() {
-  const N = state.planets.length;
-  const clusterRadius = N <= 3 ? 12 : N <= 5 ? 16 : 20;
-  const positions = [];
-  for (let i = 0; i < N; i++) {
-    const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
-    positions.push({
-      x: clusterRadius * Math.cos(angle),
-      z: clusterRadius * Math.sin(angle)
-    });
-  }
-  return positions;
-}
+let mapCanvas = null;
+let mapCtx = null;
+let mapBubbles = []; // { x, y, r, color, label, type:'planet'|'node', id, planetIdx }
+let mapLines = [];   // { x1, y1, x2, y2, color, opacity }
+let mapPan = { x: 0, y: 0 };
+let mapZoom = 1;
+let mapDragging = false;
+let mapDragStart = { x: 0, y: 0 };
+let mapAnimId = null;
 
-function getMapNodePosition(node, clusterCenter, nodeIndex, totalNodes) {
-  const nodesPerRing = 6;
-  const ringSpacing = 2.0;
-  const ring = Math.floor(nodeIndex / nodesPerRing);
-  const indexInRing = nodeIndex % nodesPerRing;
-  const nodesInThisRing = Math.min(nodesPerRing, totalNodes - ring * nodesPerRing);
-  const angle = (indexInRing / nodesInThisRing) * Math.PI * 2 + ring * 0.5;
-  const r = 2.5 + ring * ringSpacing;
-  return {
-    x: clusterCenter.x + r * Math.cos(angle),
-    y: 0,
-    z: clusterCenter.z + r * Math.sin(angle)
-  };
-}
-
-function buildMapView(resetCamera = true) {
+function buildMapView() {
   viewMode = 'map';
   currentPlanetId = null;
 
-  const N = state.planets.length;
-  const clusterPositions = getMapClusterPositions();
+  // Hide Three.js canvas
+  renderer.domElement.style.display = 'none';
 
-  // For each planet: label, boundary circle, and nodes
-  state.planets.forEach((planet, i) => {
-    const center = clusterPositions[i];
-    const nodes = getVisibleNodes(planet.id);
+  // Create 2D canvas
+  mapCanvas = document.createElement('canvas');
+  mapCanvas.id = 'map-canvas';
+  mapCanvas.width = window.innerWidth;
+  mapCanvas.height = window.innerHeight;
+  mapCanvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;cursor:grab;';
+  document.body.prepend(mapCanvas);
+  mapCtx = mapCanvas.getContext('2d');
 
-    // Cluster boundary circle
-    const circleRadius = Math.max(4, 2.5 + Math.ceil(nodes.length / 6) * 2.0);
-    const circleGeo = new THREE.RingGeometry(circleRadius - 0.05, circleRadius + 0.05, 64);
-    const circleMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(planet.color), transparent: true, opacity: 0.12, side: THREE.DoubleSide });
-    const circle = new THREE.Mesh(circleGeo, circleMat);
-    circle.rotation.x = -Math.PI / 2;
-    circle.position.set(center.x, -0.01, center.z);
-    scene.add(circle);
-    mapClusterCircles.push(circle);
+  layoutMapBubbles();
+  attachMapEvents();
+  renderMap();
 
-    // Planet label at cluster center
-    const label = createTextSprite(planet.name, false, planet.color);
-    label.position.set(center.x, 1.5, center.z);
-    scene.add(label);
-    mapClusterLabels.push(label);
-
-    // Add nodes arranged around center
-    nodes.forEach((node, ni) => {
-      addNodeToSceneMap(node, center, ni, nodes.length);
-    });
-
-    // Intra-cluster lines: connect all nodes in this planet
-    const planetNodeIds = nodes.map(n => n.id);
-    if (planetNodeIds.length >= 2) {
-      // Connect each node to its neighbors in the ring, plus connect to center hub
-      for (let j = 0; j < planetNodeIds.length; j++) {
-        const nextJ = (j + 1) % planetNodeIds.length;
-        const a = nodeMeshes.get(planetNodeIds[j]);
-        const b = nodeMeshes.get(planetNodeIds[nextJ]);
-        if (a && b) {
-          const geo = new THREE.BufferGeometry().setFromPoints([a.group.position.clone(), b.group.position.clone()]);
-          const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(planet.color), transparent: true, opacity: 0.15 });
-          const line = new THREE.Line(geo, mat);
-          scene.add(line);
-          mapClusterLines.push(line);
-        }
-      }
-    }
-  });
-
-  // Active node connection lines (cross-cluster, green)
-  updateConnectionLines();
-
-  // Camera: top-down with slight angle
-  if (resetCamera) {
-    const camPos = new THREE.Vector3(0, 40, 20);
-    const origin = new THREE.Vector3(0, 0, 0);
-    animateCamera(camPos, origin, 1.2, () => {
-      controls.minDistance = 10;
-      controls.maxDistance = 80;
-    });
-  }
-
-  // UI updates
   document.getElementById('back-to-solar-btn').style.display = 'none';
   document.getElementById('map-toggle-btn').textContent = '\u25a6 Solar';
   document.getElementById('map-toggle-btn').classList.add('active-btn');
 }
 
-function addNodeToSceneMap(node, clusterCenter, nodeIndex, totalNodes) {
-  if (nodeMeshes.has(node.id)) return;
-  const group = new THREE.Group();
-  const size = getNodeSize(node);
-  const color = getNodeColor(node);
+function layoutMapBubbles() {
+  mapBubbles = [];
+  mapLines = [];
+  const N = state.planets.length;
+  const clusterSpread = N <= 3 ? 250 : N <= 5 ? 300 : 380;
 
-  const geo = new THREE.SphereGeometry(size, 16, 16);
-  const mat = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.3, transparent: true, opacity: node.status === 'inbox' ? 0.6 : 0.9 });
-  const sphere = new THREE.Mesh(geo, mat);
-  sphere.userData = { nodeId: node.id };
-  group.add(sphere);
-
-  if (node.status === 'active') {
-    const isNow = node.id === state.nowNodeId;
-    const ringSize = isNow ? size * 2.2 : size * 1.5;
-    const ringGeo = new THREE.RingGeometry(ringSize * 0.85, ringSize, 32);
-    const ringColor = isNow ? 0xffcc33 : 0x00ff88;
-    const ringMat = new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: isNow ? 0.35 : 0.2, side: THREE.DoubleSide });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.name = 'glow-ring';
-    group.add(ring);
+  // Planet hub positions in a circle
+  const planetPositions = [];
+  for (let i = 0; i < N; i++) {
+    const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
+    planetPositions.push({
+      x: clusterSpread * Math.cos(angle),
+      y: clusterSpread * Math.sin(angle)
+    });
   }
 
-  if (node.mode && MODE_COLORS[node.mode]) {
-    const badgeGeo = new THREE.SphereGeometry(0.06, 8, 8);
-    const badgeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(MODE_COLORS[node.mode]) });
-    const badge = new THREE.Mesh(badgeGeo, badgeMat);
-    badge.position.set(size + 0.12, -size * 0.5, 0);
-    badge.name = 'mode-badge';
-    group.add(badge);
+  state.planets.forEach((planet, i) => {
+    const cx = planetPositions[i].x;
+    const cy = planetPositions[i].y;
+    const nodes = getVisibleNodes(planet.id);
+    const planetRadius = 30 + nodes.length * 2;
+
+    // Planet hub bubble
+    mapBubbles.push({ x: cx, y: cy, r: planetRadius, color: planet.color, label: planet.name, type: 'planet', id: planet.id, planetIdx: i, opacity: 0.25 });
+
+    // Node bubbles arranged around planet
+    const nodeRadius = 80 + nodes.length * 8;
+    nodes.forEach((node, ni) => {
+      const angle = (ni / Math.max(nodes.length, 1)) * Math.PI * 2 - Math.PI / 2;
+      const nx = cx + nodeRadius * Math.cos(angle);
+      const ny = cy + nodeRadius * Math.sin(angle);
+      const ageDays = (Date.now() - (node.createdAt || Date.now())) / 86400000;
+      const bubbleR = 12 + Math.min(ageDays / 30, 1) * 14;
+
+      let bubbleColor;
+      if (node.friction && node.status !== 'active') bubbleColor = '#ff6633';
+      else if (node.status === 'active') bubbleColor = '#00ff88';
+      else if (node.status === 'inbox') bubbleColor = '#8888ff';
+      else bubbleColor = '#66ccff';
+
+      mapBubbles.push({ x: nx, y: ny, r: bubbleR, color: bubbleColor, label: node.title, type: 'node', id: node.id, planetIdx: i, opacity: node.status === 'inbox' ? 0.5 : 0.85, borderColor: node.id === state.nowNodeId ? '#ffcc33' : (node.status === 'active' ? '#00ff88' : null), mode: node.mode });
+
+      // Line from node to planet hub
+      mapLines.push({ x1: cx, y1: cy, x2: nx, y2: ny, color: planet.color, opacity: 0.15 });
+    });
+
+    // Lines between sibling nodes
+    for (let j = 0; j < nodes.length; j++) {
+      const nextJ = (j + 1) % nodes.length;
+      const bj = mapBubbles.find(b => b.type === 'node' && b.id === nodes[j].id);
+      const bn = mapBubbles.find(b => b.type === 'node' && b.id === nodes[nextJ].id);
+      if (bj && bn && nodes.length > 1) {
+        mapLines.push({ x1: bj.x, y1: bj.y, x2: bn.x, y2: bn.y, color: planet.color, opacity: 0.08 });
+      }
+    }
+  });
+
+  // Active node cross-cluster connections (green)
+  const activeNodes = getActiveNodes();
+  for (let i = 0; i < activeNodes.length; i++) {
+    for (let j = i + 1; j < activeNodes.length; j++) {
+      const ba = mapBubbles.find(b => b.type === 'node' && b.id === activeNodes[i].id);
+      const bb = mapBubbles.find(b => b.type === 'node' && b.id === activeNodes[j].id);
+      if (ba && bb) {
+        mapLines.push({ x1: ba.x, y1: ba.y, x2: bb.x, y2: bb.y, color: '#00ff88', opacity: 0.3 });
+      }
+    }
   }
+}
 
-  const label = createTextSprite(node.title, node.status === 'active');
-  label.position.set(0, size + 0.25, 0);
-  label.name = 'label';
-  group.add(label);
+function renderMap() {
+  if (!mapCtx || viewMode !== 'map') return;
+  const W = mapCanvas.width;
+  const H = mapCanvas.height;
+  const dpr = window.devicePixelRatio || 1;
+  mapCanvas.width = W * dpr / (mapCanvas._dprSet ? 1 : 1);
 
-  if (isMobile) {
-    const hitGeo = new THREE.SphereGeometry(size * 2.5, 8, 8);
-    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
-    const hitSphere = new THREE.Mesh(hitGeo, hitMat);
-    hitSphere.userData = { nodeId: node.id };
-    hitSphere.name = 'hit-area';
-    group.add(hitSphere);
+  // Actually let's just use CSS scaling and keep it simple
+  mapCanvas.width = window.innerWidth * dpr;
+  mapCanvas.height = window.innerHeight * dpr;
+  mapCanvas.style.width = window.innerWidth + 'px';
+  mapCanvas.style.height = window.innerHeight + 'px';
+  mapCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const cx = window.innerWidth / 2 + mapPan.x;
+  const cy = window.innerHeight / 2 + mapPan.y;
+
+  // Clear
+  mapCtx.fillStyle = '#0a0a1a';
+  mapCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+  mapCtx.save();
+  mapCtx.translate(cx, cy);
+  mapCtx.scale(mapZoom, mapZoom);
+
+  // Draw lines
+  mapLines.forEach(l => {
+    mapCtx.beginPath();
+    mapCtx.moveTo(l.x1, l.y1);
+    mapCtx.lineTo(l.x2, l.y2);
+    mapCtx.strokeStyle = l.color;
+    mapCtx.globalAlpha = l.opacity;
+    mapCtx.lineWidth = 1;
+    mapCtx.stroke();
+    mapCtx.globalAlpha = 1;
+  });
+
+  // Draw bubbles (planets first, then nodes on top)
+  const planets = mapBubbles.filter(b => b.type === 'planet');
+  const nodes = mapBubbles.filter(b => b.type === 'node');
+
+  // Planet bubbles
+  planets.forEach(b => {
+    mapCtx.beginPath();
+    mapCtx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    mapCtx.globalAlpha = b.opacity;
+    mapCtx.fillStyle = b.color;
+    mapCtx.fill();
+    mapCtx.globalAlpha = 0.4;
+    mapCtx.strokeStyle = b.color;
+    mapCtx.lineWidth = 2;
+    mapCtx.stroke();
+    mapCtx.globalAlpha = 1;
+
+    // Planet label
+    mapCtx.font = 'bold 14px Segoe UI, system-ui, sans-serif';
+    mapCtx.fillStyle = b.color;
+    mapCtx.textAlign = 'center';
+    mapCtx.textBaseline = 'middle';
+    mapCtx.fillText(b.label, b.x, b.y);
+  });
+
+  // Node bubbles
+  nodes.forEach(b => {
+    // Border/glow for active/now
+    if (b.borderColor) {
+      mapCtx.beginPath();
+      mapCtx.arc(b.x, b.y, b.r + 3, 0, Math.PI * 2);
+      mapCtx.globalAlpha = 0.4;
+      mapCtx.strokeStyle = b.borderColor;
+      mapCtx.lineWidth = 3;
+      mapCtx.stroke();
+      mapCtx.globalAlpha = 1;
+    }
+
+    mapCtx.beginPath();
+    mapCtx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    mapCtx.globalAlpha = b.opacity;
+    mapCtx.fillStyle = b.color;
+    mapCtx.fill();
+    mapCtx.globalAlpha = 0.5;
+    mapCtx.strokeStyle = b.color;
+    mapCtx.lineWidth = 1;
+    mapCtx.stroke();
+    mapCtx.globalAlpha = 1;
+
+    // Mode badge
+    if (b.mode && MODE_COLORS[b.mode]) {
+      mapCtx.beginPath();
+      mapCtx.arc(b.x + b.r * 0.7, b.y - b.r * 0.7, 4, 0, Math.PI * 2);
+      mapCtx.fillStyle = MODE_COLORS[b.mode];
+      mapCtx.fill();
+    }
+
+    // Label
+    const maxLabelWidth = 90;
+    let label = b.label;
+    mapCtx.font = '11px Segoe UI, system-ui, sans-serif';
+    if (mapCtx.measureText(label).width > maxLabelWidth) {
+      while (mapCtx.measureText(label + '…').width > maxLabelWidth && label.length > 0) label = label.slice(0, -1);
+      label += '…';
+    }
+    mapCtx.fillStyle = '#e0e0e0';
+    mapCtx.textAlign = 'center';
+    mapCtx.textBaseline = 'top';
+    mapCtx.fillText(label, b.x, b.y + b.r + 4);
+  });
+
+  mapCtx.restore();
+  mapAnimId = requestAnimationFrame(renderMap);
+}
+
+function mapScreenToWorld(sx, sy) {
+  const cx = window.innerWidth / 2 + mapPan.x;
+  const cy = window.innerHeight / 2 + mapPan.y;
+  return { x: (sx - cx) / mapZoom, y: (sy - cy) / mapZoom };
+}
+
+function mapHitTest(sx, sy) {
+  const w = mapScreenToWorld(sx, sy);
+  // Check nodes first (on top), then planets
+  const nodes = mapBubbles.filter(b => b.type === 'node').reverse();
+  for (const b of nodes) {
+    const dx = w.x - b.x, dy = w.y - b.y;
+    if (dx * dx + dy * dy <= b.r * b.r) return b;
   }
+  return null;
+}
 
-  const pos = getMapNodePosition(node, clusterCenter, nodeIndex, totalNodes);
-  group.position.set(pos.x, pos.y, pos.z);
+function attachMapEvents() {
+  let clickStart = null;
 
-  scene.add(group);
-  nodeMeshes.set(node.id, { sphere, label, group, node });
+  mapCanvas.addEventListener('pointerdown', (e) => {
+    mapDragging = true;
+    mapDragStart = { x: e.clientX - mapPan.x, y: e.clientY - mapPan.y };
+    clickStart = { x: e.clientX, y: e.clientY, time: Date.now() };
+    mapCanvas.style.cursor = 'grabbing';
+  });
+
+  mapCanvas.addEventListener('pointermove', (e) => {
+    if (!mapDragging) return;
+    mapPan.x = e.clientX - mapDragStart.x;
+    mapPan.y = e.clientY - mapDragStart.y;
+  });
+
+  mapCanvas.addEventListener('pointerup', (e) => {
+    mapDragging = false;
+    mapCanvas.style.cursor = 'grab';
+    if (clickStart && Date.now() - clickStart.time < 300) {
+      const dx = e.clientX - clickStart.x, dy = e.clientY - clickStart.y;
+      if (dx * dx + dy * dy < 25) {
+        const hit = mapHitTest(e.clientX, e.clientY);
+        if (hit && hit.type === 'node') openSidePanel(hit.id);
+      }
+    }
+    clickStart = null;
+  });
+
+  mapCanvas.addEventListener('dblclick', (e) => {
+    const hit = mapHitTest(e.clientX, e.clientY);
+    if (hit && hit.type === 'node') toggleActive(hit.id);
+  });
+
+  mapCanvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+    mapZoom = Math.max(0.2, Math.min(3, mapZoom * zoomFactor));
+  }, { passive: false });
+
+  // Touch support
+  let touchDist = 0;
+  mapCanvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      mapDragging = true;
+      mapDragStart = { x: e.touches[0].clientX - mapPan.x, y: e.touches[0].clientY - mapPan.y };
+      clickStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
+    } else if (e.touches.length === 2) {
+      touchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    }
+  }, { passive: true });
+
+  mapCanvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 1 && mapDragging) {
+      mapPan.x = e.touches[0].clientX - mapDragStart.x;
+      mapPan.y = e.touches[0].clientY - mapDragStart.y;
+    } else if (e.touches.length === 2) {
+      const nd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      mapZoom = Math.max(0.2, Math.min(3, mapZoom * (nd / touchDist)));
+      touchDist = nd;
+    }
+  }, { passive: true });
+
+  mapCanvas.addEventListener('touchend', (e) => {
+    mapDragging = false;
+    if (clickStart && Date.now() - clickStart.time < 300 && e.changedTouches.length === 1) {
+      const t = e.changedTouches[0];
+      const dx = t.clientX - clickStart.x, dy = t.clientY - clickStart.y;
+      if (dx * dx + dy * dy < 25) {
+        const hit = mapHitTest(t.clientX, t.clientY);
+        if (hit && hit.type === 'node') openSidePanel(hit.id);
+      }
+    }
+    clickStart = null;
+  });
 }
 
 function teardownMapView() {
-  nodeMeshes.forEach(entry => scene.remove(entry.group));
-  nodeMeshes.clear();
-  connectionLines.forEach(l => scene.remove(l));
-  connectionLines = [];
-  mapClusterLines.forEach(l => scene.remove(l));
-  mapClusterLines = [];
-  mapClusterLabels.forEach(l => scene.remove(l));
-  mapClusterLabels = [];
-  mapClusterCircles.forEach(c => scene.remove(c));
-  mapClusterCircles = [];
+  if (mapAnimId) { cancelAnimationFrame(mapAnimId); mapAnimId = null; }
+  if (mapCanvas) { mapCanvas.remove(); mapCanvas = null; mapCtx = null; }
+  mapBubbles = [];
+  mapLines = [];
+  mapPan = { x: 0, y: 0 };
+  mapZoom = 1;
+  renderer.domElement.style.display = '';
   document.getElementById('map-toggle-btn').textContent = '\u25a6 Map';
   document.getElementById('map-toggle-btn').classList.remove('active-btn');
 }
@@ -1923,15 +2075,10 @@ function rebuildCurrentView() {
   sectorDividers = [];
   sectorLabels.forEach(l => scene.remove(l));
   sectorLabels = [];
-  mapClusterLines.forEach(l => scene.remove(l));
-  mapClusterLines = [];
-  mapClusterLabels.forEach(l => scene.remove(l));
-  mapClusterLabels = [];
-  mapClusterCircles.forEach(c => scene.remove(c));
-  mapClusterCircles = [];
-
   if (viewMode === 'map') {
-    buildMapView(false);
+    // For map, just re-layout the 2D bubbles
+    layoutMapBubbles();
+    return;
   } else if (viewMode === 'sectors') {
     buildSectorsView(false);
   } else if (viewMode === 'planet' && currentPlanetId) {
@@ -2248,77 +2395,6 @@ function animate() {
     });
 
     // Connection lines update
-    if (connectionLines.length > 0) {
-      const activeNodes = getActiveNodes();
-      let idx = 0;
-      for (let i = 0; i < activeNodes.length; i++) {
-        for (let j = i + 1; j < activeNodes.length; j++) {
-          if (idx >= connectionLines.length) break;
-          const a = nodeMeshes.get(activeNodes[i].id);
-          const b = nodeMeshes.get(activeNodes[j].id);
-          if (a && b) {
-            const pos = connectionLines[idx].geometry.attributes.position;
-            pos.setXYZ(0, a.group.position.x, a.group.position.y, a.group.position.z);
-            pos.setXYZ(1, b.group.position.x, b.group.position.y, b.group.position.z);
-            pos.needsUpdate = true;
-          }
-          idx++;
-        }
-      }
-    }
-  }
-
-  // Map view: glow rings, labels, cluster lines, connection lines
-  if (viewMode === 'map') {
-    nodeMeshes.forEach((entry, id) => {
-      // Glow ring
-      const ring = entry.group.getObjectByName('glow-ring');
-      if (ring) {
-        ring.lookAt(camera.position);
-        const offset = id.charCodeAt(0) * 0.1;
-        const isNow = entry.node.id === state.nowNodeId;
-        if (isNow) {
-          ring.material.opacity = 0.2 + Math.sin(time * 3 + offset) * 0.15;
-          const scale = 1.0 + Math.sin(time * 2) * 0.15;
-          ring.scale.set(scale, scale, 1);
-        } else {
-          ring.material.opacity = 0.15 + Math.sin(time * 2 + offset) * 0.08;
-        }
-      }
-      // Label fade with distance
-      const dist = camera.position.distanceTo(entry.group.position);
-      if (entry.label.material) entry.label.material.opacity = Math.max(0, Math.min(1, 1 - (dist - 10) / 30));
-    });
-
-    // Cluster labels: constant screen size
-    mapClusterLabels.forEach(label => {
-      const dist = camera.position.distanceTo(label.position);
-      const scale = dist * 0.04;
-      label.scale.set(scale, scale * 0.3, 1);
-    });
-
-    // Update cluster lines positions (nodes don't move, but keep in sync)
-    let cli = 0;
-    state.planets.forEach(planet => {
-      const nodes = getVisibleNodes(planet.id);
-      const nodeIds = nodes.map(n => n.id);
-      if (nodeIds.length >= 2) {
-        for (let j = 0; j < nodeIds.length; j++) {
-          const nextJ = (j + 1) % nodeIds.length;
-          const a = nodeMeshes.get(nodeIds[j]);
-          const b = nodeMeshes.get(nodeIds[nextJ]);
-          if (a && b && cli < mapClusterLines.length) {
-            const pos = mapClusterLines[cli].geometry.attributes.position;
-            pos.setXYZ(0, a.group.position.x, a.group.position.y, a.group.position.z);
-            pos.setXYZ(1, b.group.position.x, b.group.position.y, b.group.position.z);
-            pos.needsUpdate = true;
-          }
-          cli++;
-        }
-      }
-    });
-
-    // Active connection lines update
     if (connectionLines.length > 0) {
       const activeNodes = getActiveNodes();
       let idx = 0;
