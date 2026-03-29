@@ -4,100 +4,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a personal portfolio website hosted on GitHub Pages that presents itself as an interactive terminal emulator. The site mimics a Unix-like terminal interface where visitors can type commands to learn about Pepe Araya, view social links, and download a resume.
+Personal portfolio website hosted on GitHub Pages, built as an interactive terminal emulator. Visitors type Unix-like commands to learn about Pepe Araya, view social links, and download a resume. No build process, no dependencies — pure HTML/CSS/JavaScript.
 
 ## Architecture
 
-### Core Components
+The terminal works via a hidden `<textarea>` that captures keyboard input. As the user types, `typeIt()` in `caret.js` mirrors the text into a visible `<span id="typer">`. On Enter, `enterKey()` in `main.js` pushes the command to a history array and routes it through `commander()` — a switch statement that either renders output to the terminal or opens external links.
 
-The application is built with vanilla JavaScript and follows a simple three-layer architecture:
+**Rendering pipeline:** `commander()` → `loopLines()` (multi-line with staggered animation) or `addLine()` (single line) → inserts `<p>` elements before the `#before` anchor in `#terminal`.
 
-1. **Presentation Layer** (`index.html`)
-   - Single-page application with a terminal-style interface
-   - Hidden textarea captures keyboard input while displaying styled output
-   - DOM structure: `#terminal` (output area), `#command` (input area), `#texter` (hidden textarea), `#liner` (prompt display)
+**Key globals in `main.js`:**
+- `commands[]` — command history (navigable with Up/Down arrows)
+- `git` — current history index
+- `pw`/`pwd` — password mode state for the "secret" easter egg (password: "42")
 
-2. **Command Processing** (`js/main.js`)
-   - Entry point that initializes the terminal and displays the banner
-   - `commander()` function: Switch statement routing commands to handlers (js/main.js:74)
-   - `enterKey()`: Handles keyboard events including Enter (execute), Up/Down arrows (history navigation)
-   - `addLine()` and `loopLines()`: Core rendering functions that add content to the terminal with typing animations
-   - Password easter egg system: "secret" command enables password mode, correct answer unlocks hidden content
-
-3. **Data Layer** (`js/commands.js`)
-   - Defines all command responses as arrays of strings
-   - Contains social media links, about text, help menu, and ASCII art banner
-   - `whois`: Professional bio and background
-   - `help`: Available commands list
-   - `banner`: ASCII art header with branding
-
-4. **Utility Layer** (`js/caret.js`)
-   - Manages cursor positioning and visual effects
-   - `typeIt()`: Updates display based on textarea input
-   - `moveIt()`: Handles left/right arrow key cursor movement
-
-5. **Styling** (`css/style.css`)
-   - Terminal color scheme: green (#519975) on dark brown (#211D1B)
-   - Typing animation using CSS keyframes
-   - Blinking cursor effect
-   - Responsive terminal prompt styling
-
-### Key Interactions
-
-- User types in hidden textarea → `typeIt()` updates visible `#typer` span
-- Enter key → `commander()` processes command → `addLine()` or `loopLines()` renders output
-- Special commands like "sudo" trigger external actions (opens YouTube Rick Roll)
-- "secret" command + password "42" reveals hidden easter egg content
-- Social commands ("twitter", "github", etc.) open new tabs via `newTab()`
+**Mobile support:** `isMobile` flag (width ≤ 768px) switches to a compact banner, adds quick-command buttons, and uses container scrolling instead of window scrolling.
 
 ## Development
 
-### Testing Locally
-
-Since this is a static site, simply open `index.html` in a browser:
 ```bash
-open index.html
+open index.html                    # Quick test
+python3 -m http.server 8000       # Local server at http://localhost:8000
 ```
 
-Or use a local server for a more production-like environment:
-```bash
-python3 -m http.server 8000
-# Then visit http://localhost:8000
-```
+Deployment is automatic — push to `main` and GitHub Pages deploys. Custom domain configured via `CNAME`.
 
-### Deployment
+## Adding New Commands
 
-This site is hosted on GitHub Pages. Changes pushed to the `main` branch are automatically deployed. The `CNAME` file configures the custom domain.
+1. Add response data to `js/commands.js` (array of strings with HTML)
+2. Add a `case` to `commander()` in `js/main.js:83`
+3. Use `loopLines(data, "color2 margin", 80)` for multi-line or `addLine(text, "color2", 80)` for single line
+4. For external links: `newTab(url)`
+5. Add entry to the `help` array in `js/commands.js` for discoverability
 
-### Adding New Commands
+## Key Hardcoded Values
 
-1. Add command data to `js/commands.js` (if it requires text output)
-2. Add case statement to `commander()` switch in `js/main.js:74`
-3. Use `loopLines()` for multi-line animated output or `addLine()` for single lines
-4. Use `newTab()` for external links
-5. Add command to `help` array in `js/commands.js` for discoverability
-
-### File Structure
-
-```
-.
-├── index.html          # Main HTML structure
-├── css/
-│   └── style.css      # Terminal styling and animations
-├── js/
-│   ├── main.js        # Command processing and event handling
-│   ├── commands.js    # Command definitions and content
-│   └── caret.js       # Cursor utilities
-├── assets/
-│   └── pepe_araya_resume.pdf  # Downloadable resume
-└── CNAME              # GitHub Pages custom domain configuration
-```
-
-## Technical Considerations
-
-- No build process required - pure HTML/CSS/JavaScript
-- No external dependencies or frameworks
-- Password for easter egg is hardcoded as "42" (js/main.js:31)
-- Resume download path is hardcoded (js/main.js:154)
-- Social media URLs defined in `js/commands.js:1-7`
-- Terminal prompt format: `visitor@pepearayao.com:~$` (css/style.css:64)
+- Social URLs: `js/commands.js:1-7`
+- Easter egg password: `"42"` (`js/main.js:40`)
+- Resume path: `assets/pepe_araya_resume.pdf` (`js/main.js:166`)
+- Terminal prompt: `visitor@pepearayao.com:~$` (`css/style.css`)
+- Color scheme: green `#519975` on dark brown `#211D1B`

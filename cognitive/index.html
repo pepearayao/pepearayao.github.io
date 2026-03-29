@@ -1,0 +1,2462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Cognitive Globe</title>
+<style>
+/* ============================================================
+   GLOBAL STYLES — Dark space theme
+   ============================================================ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a1a;
+  color: #e0e0e0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+}
+canvas { display: block; touch-action: none; }
+
+/* ============================================================
+   OVERLAY — Active nodes (top-left)
+   ============================================================ */
+#active-overlay {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  background: rgba(15, 15, 35, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(100, 200, 255, 0.15);
+  border-radius: 12px;
+  padding: 16px;
+  min-width: 220px;
+  max-width: 300px;
+  z-index: 100;
+  font-size: 13px;
+}
+#active-overlay h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: #6fc;
+  margin-bottom: 10px;
+}
+#active-list { list-style: none; }
+#active-list li {
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  background: rgba(0, 255, 136, 0.08);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: background 0.2s;
+  gap: 6px;
+}
+#active-list li:hover { background: rgba(0, 255, 136, 0.18); }
+#active-list li .priority-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+#active-list li .node-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#active-list li .deactivate-btn {
+  background: none; border: none; color: #f66; cursor: pointer; font-size: 14px; padding: 0 4px;
+}
+#active-list li .now-btn {
+  background: none; border: none; color: #888; cursor: pointer; font-size: 14px; padding: 0 4px;
+  transition: color 0.2s;
+}
+#active-list li .now-btn:hover { color: #fc6; }
+#active-list li .now-btn.is-now { color: #fc6; }
+.now-item {
+  background: rgba(255, 200, 50, 0.12) !important;
+  border: 1px solid rgba(255, 200, 50, 0.25);
+}
+.now-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #fc6;
+  font-weight: bold;
+}
+.on-deck-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #556;
+  margin: 8px 0 4px;
+}
+.empty-state { color: #667; font-style: italic; font-size: 12px; }
+
+/* Done today */
+#done-today {
+  margin-top: 12px;
+  border-top: 1px solid rgba(100, 200, 255, 0.1);
+  padding-top: 8px;
+  font-size: 11px;
+  color: #6fc;
+}
+#done-today .done-count { font-weight: bold; }
+#done-today .done-titles {
+  display: none;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #889;
+}
+#done-today .done-titles.expanded { display: block; }
+@keyframes check-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.4); color: #0f8; }
+  100% { transform: scale(1); }
+}
+.check-anim { animation: check-pop 0.4s ease; }
+
+/* Pomodoro timer */
+#pomodoro-timer {
+  margin-top: 10px;
+  border-top: 1px solid rgba(100, 200, 255, 0.1);
+  padding-top: 8px;
+  display: none;
+}
+#pomodoro-timer.visible { display: block; }
+.timer-display {
+  font-family: 'Courier New', monospace;
+  font-size: 22px;
+  font-weight: bold;
+  color: #fc6;
+  text-align: center;
+  margin: 4px 0;
+}
+.timer-controls {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.timer-btn {
+  background: rgba(30, 30, 60, 0.6);
+  border: 1px solid rgba(100, 200, 255, 0.15);
+  border-radius: 4px;
+  padding: 3px 8px;
+  color: #aac;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.timer-btn:hover { background: rgba(50, 50, 80, 0.8); }
+.timer-btn.active-timer { border-color: #fc6; color: #fc6; }
+
+/* ============================================================
+   CONTROLS BAR (top-right)
+   ============================================================ */
+#controls-bar {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  z-index: 100;
+}
+#controls-bar input, #controls-bar select {
+  background: rgba(15, 15, 35, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(100, 200, 255, 0.15);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #e0e0e0;
+  font-size: 13px;
+  outline: none;
+}
+#controls-bar input::placeholder { color: #556; }
+#controls-bar input:focus { border-color: rgba(100, 200, 255, 0.4); }
+.ctrl-btn {
+  background: rgba(15, 15, 35, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(100, 200, 255, 0.15);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #e0e0e0;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.ctrl-btn:hover { background: rgba(30, 30, 60, 0.9); border-color: rgba(100, 200, 255, 0.35); }
+.ctrl-btn.active-btn { border-color: #6fc; color: #6fc; }
+
+/* ============================================================
+   FLOATING ADD BUTTON (bottom-right)
+   ============================================================ */
+#add-btn {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #00cc88, #0088ff);
+  border: none;
+  color: #fff;
+  font-size: 28px;
+  cursor: pointer;
+  z-index: 100;
+  box-shadow: 0 4px 20px rgba(0, 200, 136, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#add-btn:hover { transform: scale(1.1); box-shadow: 0 6px 30px rgba(0, 200, 136, 0.6); }
+
+/* ============================================================
+   BACK TO SOLAR BUTTON
+   ============================================================ */
+#back-to-solar-btn {
+  position: fixed;
+  top: 70px;
+  left: 16px;
+  z-index: 100;
+  display: none;
+}
+
+/* ============================================================
+   QUICK ADD BAR (bottom)
+   ============================================================ */
+#quick-add-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(10, 10, 30, 0.95);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(100, 200, 255, 0.15);
+  padding: 16px 24px;
+  z-index: 200;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+}
+#quick-add-bar.visible { display: flex; }
+#quick-add-bar .qa-row { display: flex; gap: 8px; align-items: center; }
+#quick-add-bar input[type="text"] {
+  flex: 1;
+  background: rgba(30, 30, 60, 0.8);
+  border: 1px solid rgba(100, 200, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #fff;
+  font-size: 15px;
+  outline: none;
+}
+#quick-add-bar input[type="text"]:focus { border-color: #6fc; }
+#quick-add-bar input[type="text"]::placeholder { color: #556; }
+#quick-add-bar select {
+  background: rgba(30, 30, 60, 0.8);
+  border: 1px solid rgba(100, 200, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #e0e0e0;
+  font-size: 13px;
+  outline: none;
+}
+#quick-add-bar .qa-hint { font-size: 11px; color: #556; padding-left: 4px; }
+.qa-close-btn {
+  background: none;
+  border: 1px solid rgba(255,100,100,0.3);
+  border-radius: 6px;
+  color: #f66;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.qa-close-btn:hover { background: rgba(255,100,100,0.1); }
+.qa-inbox-toggle {
+  font-size: 12px;
+  color: #88f;
+  cursor: pointer;
+  background: none;
+  border: none;
+  text-decoration: underline;
+  padding: 0;
+}
+
+/* ============================================================
+   SIDE PANEL (right)
+   ============================================================ */
+#side-panel {
+  position: fixed;
+  top: 0;
+  right: -400px;
+  width: 380px;
+  height: 100vh;
+  background: rgba(12, 12, 30, 0.96);
+  backdrop-filter: blur(16px);
+  border-left: 1px solid rgba(100, 200, 255, 0.15);
+  z-index: 300;
+  padding: 24px;
+  overflow-y: auto;
+  transition: right 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+#side-panel.open { right: 0; }
+#side-panel h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: #88aaff; }
+#side-panel label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #778; margin-bottom: 4px; display: block; }
+#side-panel input, #side-panel textarea, #side-panel select {
+  width: 100%;
+  background: rgba(30, 30, 60, 0.8);
+  border: 1px solid rgba(100, 200, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #e0e0e0;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+}
+#side-panel textarea { min-height: 80px; resize: vertical; }
+#side-panel input:focus, #side-panel textarea:focus { border-color: rgba(100, 200, 255, 0.5); }
+.panel-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.panel-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(100, 200, 255, 0.2);
+  background: rgba(30, 30, 60, 0.6);
+  color: #e0e0e0;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.panel-btn:hover { background: rgba(50, 50, 80, 0.8); }
+.panel-btn.danger { border-color: rgba(255, 100, 100, 0.3); color: #f88; }
+.panel-btn.danger:hover { background: rgba(255, 50, 50, 0.15); }
+.panel-btn.success { border-color: rgba(0, 255, 136, 0.3); color: #6fc; }
+.panel-btn.success:hover { background: rgba(0, 255, 136, 0.1); }
+.panel-btn.primary { background: linear-gradient(135deg, #00cc88, #0088ff); border: none; color: #fff; }
+.panel-btn.friction-on { border-color: rgba(255, 120, 50, 0.5); color: #f84; background: rgba(255, 120, 50, 0.1); }
+#node-history { max-height: 200px; overflow-y: auto; font-size: 12px; }
+#node-history .history-item { padding: 4px 0; border-bottom: 1px solid rgba(100, 200, 255, 0.05); color: #889; }
+#node-history .history-item .hist-date { color: #556; font-size: 11px; }
+
+/* ============================================================
+   LIST VIEW
+   ============================================================ */
+#list-view {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #0a0a1a;
+  z-index: 150;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+#list-view.visible { display: flex; }
+#list-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(100, 200, 255, 0.1);
+}
+#list-view-header h2 { font-size: 18px; font-weight: 600; }
+#list-view-content { flex: 1; overflow-y: auto; padding: 16px 24px; }
+.list-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #6fc; margin: 16px 0 8px; }
+.list-section-title.inbox-title { color: #88f; }
+.list-section-title.planet-title { color: #aac; }
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 4px;
+  background: rgba(20, 20, 45, 0.6);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border: 1px solid transparent;
+}
+.list-item:hover { background: rgba(30, 30, 60, 0.8); }
+.list-item.active-item { border-color: rgba(0, 255, 136, 0.3); }
+.list-item .li-priority { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.list-item .li-title { flex: 1; font-size: 14px; }
+.list-item .li-category { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(100, 100, 200, 0.15); color: #aac; }
+.list-item .li-mode { font-size: 10px; padding: 2px 6px; border-radius: 4px; }
+.list-item .li-friction { color: #f84; font-size: 12px; }
+.list-item .li-status { font-size: 11px; color: #667; }
+
+/* ============================================================
+   INBOX BADGE
+   ============================================================ */
+#inbox-badge {
+  position: fixed;
+  bottom: 28px;
+  left: 28px;
+  z-index: 100;
+  display: none;
+}
+#inbox-badge button {
+  background: rgba(15, 15, 35, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(136, 136, 255, 0.3);
+  border-radius: 28px;
+  padding: 10px 18px;
+  color: #88f;
+  font-size: 13px;
+  cursor: pointer;
+}
+#inbox-badge button:hover { background: rgba(30, 30, 60, 0.9); }
+#inbox-badge .badge-count { background: #88f; color: #0a0a1a; border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: bold; margin-left: 6px; }
+
+/* ============================================================
+   TOAST NOTIFICATIONS
+   ============================================================ */
+#toast-container {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+.toast {
+  background: rgba(15, 15, 35, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(100, 200, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 13px;
+  color: #e0e0e0;
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards;
+  pointer-events: none;
+}
+.toast.warning { border-color: rgba(255, 200, 50, 0.4); color: #fc6; }
+.toast.error { border-color: rgba(255, 80, 80, 0.4); color: #f88; }
+.toast.success { border-color: rgba(0, 255, 136, 0.3); color: #6fc; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+
+/* ============================================================
+   SWITCH PROMPT OVERLAY
+   ============================================================ */
+#switch-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(5, 5, 15, 0.92);
+  z-index: 600;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  cursor: pointer;
+}
+#switch-overlay.visible { display: flex; }
+#switch-overlay .switch-text { font-size: 28px; color: #aac; font-weight: 300; letter-spacing: 2px; }
+#switch-overlay .switch-countdown { font-size: 48px; color: #6fc; font-weight: 200; margin: 16px 0; }
+#switch-overlay .switch-hint { font-size: 12px; color: #445; }
+
+/* ============================================================
+   PLANET MANAGER
+   ============================================================ */
+#planet-manager {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #0a0a1a;
+  z-index: 160;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+#planet-manager.visible { display: flex; }
+#planet-manager-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(100, 200, 255, 0.1);
+}
+#planet-manager-content { flex: 1; overflow-y: auto; padding: 16px 24px; }
+.planet-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  background: rgba(20, 20, 45, 0.6);
+  border-radius: 8px;
+}
+.planet-item input[type="text"] {
+  flex: 1;
+  background: rgba(30, 30, 60, 0.8);
+  border: 1px solid rgba(100, 200, 255, 0.2);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: #e0e0e0;
+  font-size: 14px;
+  outline: none;
+}
+.planet-item input[type="color"] {
+  width: 32px; height: 32px; border: none; border-radius: 6px; cursor: pointer; background: none;
+}
+.planet-item .planet-delete {
+  background: none; border: none; color: #f66; cursor: pointer; font-size: 16px; padding: 4px 8px;
+}
+.planet-item .planet-count { font-size: 11px; color: #667; min-width: 50px; text-align: right; }
+
+/* ============================================================
+   LOCK SCREEN
+   ============================================================ */
+#lock-screen {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #0a0a1a;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#lock-screen.hidden { display: none; }
+.lock-card {
+  background: rgba(15, 15, 35, 0.95);
+  border: 1px solid rgba(100, 200, 255, 0.15);
+  border-radius: 16px;
+  padding: 32px;
+  width: 340px;
+  max-width: 90vw;
+  text-align: center;
+}
+.lock-card h2 { font-size: 20px; margin-bottom: 4px; color: #e0e0e0; }
+.lock-card .lock-subtitle { font-size: 12px; color: #556; margin-bottom: 24px; }
+.lock-card label { display: block; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #778; margin-bottom: 4px; margin-top: 12px; }
+.lock-card input {
+  width: 100%;
+  background: rgba(30, 30, 60, 0.8);
+  border: 1px solid rgba(100, 200, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #e0e0e0;
+  font-size: 16px;
+  outline: none;
+  text-align: center;
+  letter-spacing: 8px;
+  font-family: monospace;
+}
+.lock-card input.pat-input { text-align: left; letter-spacing: normal; font-size: 13px; }
+.lock-card input:focus { border-color: rgba(100, 200, 255, 0.5); }
+.lock-card .lock-btn {
+  width: 100%;
+  padding: 12px;
+  margin-top: 20px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #00cc88, #0088ff);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lock-card .lock-btn:hover { opacity: 0.9; }
+.lock-card .lock-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.lock-card .lock-link { display: inline-block; margin-top: 16px; font-size: 12px; color: #88aaff; cursor: pointer; text-decoration: underline; background: none; border: none; }
+.lock-card .lock-error { color: #f66; font-size: 12px; margin-top: 8px; min-height: 18px; }
+.lock-card .lock-info { font-size: 11px; color: #556; margin-top: 12px; line-height: 1.5; }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+.shake { animation: shake 0.3s ease; }
+
+/* Sync status */
+#sync-status { font-size: 14px; padding: 4px 8px; border-radius: 6px; cursor: default; min-width: 28px; text-align: center; }
+#sync-status.syncing { color: #ffaa33; }
+#sync-status.synced { color: #6fc; }
+#sync-status.error { color: #f66; }
+#sync-status.offline { color: #556; }
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(100, 200, 255, 0.15); border-radius: 3px; }
+
+/* ============================================================
+   KEYBOARD SHORTCUT HINT
+   ============================================================ */
+#shortcut-hint {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: #334;
+  z-index: 50;
+  pointer-events: none;
+}
+
+/* ============================================================
+   MOBILE RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  #controls-bar {
+    flex-direction: column;
+    align-items: flex-end;
+    max-height: 44px;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    gap: 6px;
+  }
+  #controls-bar.expanded {
+    max-height: 500px;
+    background: rgba(12, 12, 30, 0.96);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(100, 200, 255, 0.15);
+    border-radius: 12px;
+    padding: 10px;
+  }
+  #controls-bar input#search-input { width: 100%; order: 1; }
+  #controls-bar select { width: 100%; order: 2; }
+  #controls-bar .ctrl-btn { width: 100%; text-align: left; order: 3; }
+  #mobile-menu-btn { display: flex !important; order: 0; align-self: flex-end; }
+  #active-overlay { top: 8px; left: 8px; min-width: auto; max-width: 200px; padding: 10px 12px; font-size: 12px; }
+  #active-overlay.collapsed #active-list, #active-overlay.collapsed #done-today, #active-overlay.collapsed #pomodoro-timer { display: none !important; }
+  #active-overlay.collapsed h3 { margin-bottom: 0; cursor: pointer; }
+  #active-overlay h3 { cursor: pointer; }
+  #side-panel { width: 100%; max-height: 75vh; top: auto; right: 0; bottom: -80vh; left: 0; transition: bottom 0.3s ease; border-left: none; border-top: 1px solid rgba(100, 200, 255, 0.15); border-radius: 16px 16px 0 0; }
+  #side-panel.open { bottom: 0; right: 0; }
+  #quick-add-bar { padding: 10px 12px; }
+  #quick-add-bar .qa-row { flex-wrap: wrap; }
+  #quick-add-bar .qa-row input[type="text"] { width: 100%; }
+  #quick-add-bar .qa-row select { flex: 1; font-size: 12px; }
+  #add-btn { bottom: 16px; right: 16px; width: 48px; height: 48px; font-size: 24px; }
+  #inbox-badge { bottom: 16px; left: 16px; }
+  #shortcut-hint { display: none; }
+  #back-to-solar-btn { top: auto; bottom: 80px; left: 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Active Nodes Overlay -->
+<div id="active-overlay">
+  <h3>&#x1f3af; Focus (0/3)</h3>
+  <ul id="active-list">
+    <li class="empty-state">Click a node to focus on it</li>
+  </ul>
+  <div id="pomodoro-timer">
+    <div class="timer-display" id="timer-display">--:--</div>
+    <div class="timer-controls">
+      <button class="timer-btn" data-mins="5">5m</button>
+      <button class="timer-btn" data-mins="10">10m</button>
+      <button class="timer-btn" data-mins="25">25m</button>
+      <button class="timer-btn" id="timer-pause">&#x23f8;</button>
+      <button class="timer-btn" id="timer-stop">&#x23f9;</button>
+    </div>
+  </div>
+  <div id="done-today">
+    Done today: <span class="done-count" id="done-count">0</span>
+    <div class="done-titles" id="done-titles"></div>
+  </div>
+</div>
+
+<!-- Controls Bar -->
+<div id="controls-bar">
+  <button class="ctrl-btn" id="mobile-menu-btn" style="display:none;">&#x2630;</button>
+  <input type="text" id="search-input" placeholder="Search nodes..." />
+  <select id="filter-category">
+    <option value="all">All Categories</option>
+    <option value="task">Tasks</option>
+    <option value="idea">Ideas</option>
+    <option value="habit">Habits</option>
+    <option value="note">Notes</option>
+  </select>
+  <select id="filter-status">
+    <option value="all">All Status</option>
+    <option value="active">Active</option>
+    <option value="inactive">Inactive</option>
+    <option value="inbox">Inbox</option>
+  </select>
+  <button class="ctrl-btn" id="view-toggle-btn" title="Toggle list view (L)">&#x1f4cb; List</button>
+  <button class="ctrl-btn" id="planets-btn" title="Manage planets">&#x1f30d; Planets</button>
+  <button class="ctrl-btn" id="export-btn" title="Export data">&#x1f4e4;</button>
+  <button class="ctrl-btn" id="import-btn" title="Import data">&#x1f4e5;</button>
+  <span id="sync-status" class="offline" title="Not synced">&#x2601;</span>
+  <input type="file" id="import-file" accept=".json" style="display:none" />
+</div>
+
+<!-- Back to Solar System Button -->
+<button class="ctrl-btn" id="back-to-solar-btn">&#x2190; Solar System</button>
+
+<!-- Floating Add Button -->
+<button id="add-btn" title="Add node (N)">+</button>
+
+<!-- Quick Add Bar -->
+<div id="quick-add-bar">
+  <div class="qa-row">
+    <input type="text" id="qa-title" placeholder="What's on your mind? (Enter to add, Esc to close)" />
+    <select id="qa-planet"></select>
+    <select id="qa-category">
+      <option value="task">Task</option>
+      <option value="idea">Idea</option>
+      <option value="habit">Habit</option>
+      <option value="note">Note</option>
+    </select>
+    <select id="qa-priority">
+      <option value="low">Low</option>
+      <option value="medium" selected>Medium</option>
+      <option value="high">High</option>
+    </select>
+    <button class="qa-inbox-toggle" id="qa-inbox-btn" title="Send to inbox">Inbox</button>
+    <button class="qa-close-btn" id="qa-close">&#x2715; Close</button>
+  </div>
+  <div class="qa-hint">Rapid-fire: type and press Enter repeatedly. Each entry becomes a new node.</div>
+</div>
+
+<!-- Side Panel -->
+<div id="side-panel">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h3>Node Details</h3>
+    <button class="panel-btn" id="panel-close" style="padding:4px 10px;">&#x2715;</button>
+  </div>
+  <div>
+    <label>Title</label>
+    <input type="text" id="panel-title" />
+  </div>
+  <div>
+    <label>Description</label>
+    <textarea id="panel-desc"></textarea>
+  </div>
+  <div style="display:flex; gap:8px;">
+    <div style="flex:1">
+      <label>Planet</label>
+      <select id="panel-planet"></select>
+    </div>
+    <div style="flex:1">
+      <label>Category</label>
+      <select id="panel-category">
+        <option value="task">Task</option>
+        <option value="idea">Idea</option>
+        <option value="habit">Habit</option>
+        <option value="note">Note</option>
+      </select>
+    </div>
+  </div>
+  <div style="display:flex; gap:8px;">
+    <div style="flex:1">
+      <label>Priority</label>
+      <select id="panel-priority">
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+    </div>
+    <div style="flex:1">
+      <label>Mode</label>
+      <select id="panel-mode">
+        <option value="">None</option>
+        <option value="execute">Execute</option>
+        <option value="improve">Improve</option>
+        <option value="rethink">Rethink</option>
+      </select>
+    </div>
+  </div>
+  <div class="panel-actions">
+    <button class="panel-btn primary" id="panel-save">Save</button>
+    <button class="panel-btn success" id="panel-toggle-active">Activate</button>
+    <button class="panel-btn" id="panel-done">&#x2713; Done</button>
+    <button class="panel-btn" id="panel-friction">&#x1f525; Friction</button>
+    <button class="panel-btn danger" id="panel-archive">Archive</button>
+    <button class="panel-btn danger" id="panel-restore" style="display:none">Restore</button>
+  </div>
+  <div>
+    <label>History</label>
+    <div id="node-history"></div>
+  </div>
+</div>
+
+<!-- List View -->
+<div id="list-view">
+  <div id="list-view-header">
+    <h2>All Nodes</h2>
+    <button class="ctrl-btn" id="list-close-btn">&#x1f30d; Globe View</button>
+  </div>
+  <div id="list-view-content"></div>
+</div>
+
+<!-- Planet Manager -->
+<div id="planet-manager">
+  <div id="planet-manager-header">
+    <h2>Manage Planets</h2>
+    <div style="display:flex; gap:8px;">
+      <button class="ctrl-btn" id="planet-add-btn">+ Add Planet</button>
+      <button class="ctrl-btn" id="planet-manager-close">&#x2715; Close</button>
+    </div>
+  </div>
+  <div id="planet-manager-content"></div>
+</div>
+
+<!-- Inbox Badge -->
+<div id="inbox-badge">
+  <button id="inbox-btn">&#x1f4e5; Inbox <span class="badge-count">0</span></button>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- Switch Prompt Overlay -->
+<div id="switch-overlay">
+  <div class="switch-text">Take a breath</div>
+  <div class="switch-countdown" id="switch-countdown">3</div>
+  <div class="switch-hint">click anywhere to skip</div>
+</div>
+
+<!-- Keyboard Shortcut Hint -->
+<div id="shortcut-hint">N: add &bull; L: list &bull; Ctrl+Z: undo &bull; Esc: close</div>
+
+<!-- Lock Screen -->
+<div id="lock-screen">
+  <div class="lock-card" id="lock-setup" style="display:none;">
+    <h2>Cognitive Globe</h2>
+    <p class="lock-subtitle">Set up cloud sync to access your thoughts from any device</p>
+    <label>GitHub Personal Access Token (gist scope)</label>
+    <input type="password" id="setup-pat" class="pat-input" placeholder="ghp_xxxxxxxxxxxx" />
+    <label>Choose a 4-digit PIN</label>
+    <input type="password" id="setup-pin" inputmode="numeric" maxlength="4" placeholder="****" />
+    <label>Confirm PIN</label>
+    <input type="password" id="setup-pin-confirm" inputmode="numeric" maxlength="4" placeholder="****" />
+    <div class="lock-error" id="setup-error"></div>
+    <button class="lock-btn" id="setup-btn">Set Up Sync</button>
+    <button class="lock-link" id="skip-setup-btn">Use local only (no sync)</button>
+    <p class="lock-info">Your PAT is encrypted with your PIN and never stored in plaintext.<br>All cloud data is encrypted end-to-end.</p>
+  </div>
+  <div class="lock-card" id="lock-unlock" style="display:none;">
+    <h2>Cognitive Globe</h2>
+    <p class="lock-subtitle">Enter your PIN to unlock</p>
+    <label>PIN</label>
+    <input type="password" id="unlock-pin" inputmode="numeric" maxlength="4" placeholder="****" />
+    <div class="lock-error" id="unlock-error"></div>
+    <button class="lock-btn" id="unlock-btn">Unlock</button>
+    <button class="lock-link" id="reset-btn">Reset setup</button>
+  </div>
+</div>
+
+<!-- Three.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+// ================================================================
+// CONSTANTS
+// ================================================================
+const STORAGE_KEY = 'cognitive_globe_data';
+const HISTORY_KEY = 'cognitive_globe_history';
+const GIST_CONFIG_KEY = 'cognitive_globe_gist_config';
+const SESSION_COOKIE = 'cg_session';
+const TODAY_KEY = 'cg_done_today';
+const MAX_ACTIVE = 3;
+const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+const CATEGORY_ANGLES = { task: 0, idea: Math.PI / 2, habit: Math.PI, note: (3 * Math.PI) / 2 };
+const PRIORITY_COLORS = { high: '#ff4466', medium: '#ffaa33', low: '#44aaff' };
+const MODE_COLORS = { execute: '#4488ff', improve: '#ffcc33', rethink: '#aa66ff' };
+
+const DEFAULT_PLANETS = [
+  { id: 'planet_work', name: 'Work', color: '#4488ff', orbitRadius: 14, orbitSpeed: 0.04 },
+  { id: 'planet_personal', name: 'Personal', color: '#ff6688', orbitRadius: 22, orbitSpeed: 0.03 },
+  { id: 'planet_health', name: 'Health', color: '#44ff88', orbitRadius: 30, orbitSpeed: 0.02 },
+  { id: 'planet_projects', name: 'Projects', color: '#ffaa33', orbitRadius: 38, orbitSpeed: 0.015 },
+  { id: 'planet_learning', name: 'Learning', color: '#aa66ff', orbitRadius: 46, orbitSpeed: 0.01 },
+];
+
+const DEFAULT_NODES = [
+  { title: 'Learn Three.js basics', description: 'Official docs and examples', category: 'task', priority: 'high', planetId: 'planet_learning' },
+  { title: 'Morning meditation', description: '10 minutes of mindfulness', category: 'habit', priority: 'medium', planetId: 'planet_health' },
+  { title: 'App for tracking books', description: 'Simple reading list with progress', category: 'idea', priority: 'low', planetId: 'planet_projects' },
+  { title: 'Review weekly goals', description: 'Every Sunday evening', category: 'habit', priority: 'medium', planetId: 'planet_personal' },
+  { title: 'Fix login bug', description: 'Intermittent 401 errors', category: 'task', priority: 'high', planetId: 'planet_work' },
+  { title: 'Explore WebGPU', description: 'Next-gen graphics API', category: 'idea', priority: 'low', planetId: 'planet_learning' },
+  { title: 'Write journal entry', description: 'Reflect on the day', category: 'note', priority: 'low', planetId: 'planet_personal' },
+  { title: 'Drink 8 glasses of water', description: 'Stay hydrated', category: 'habit', priority: 'medium', planetId: 'planet_health' },
+];
+
+// ================================================================
+// CRYPTO MODULE
+// ================================================================
+const CryptoSync = {
+  async deriveKey(pin, salt) {
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  },
+  async encrypt(plaintext, pin) {
+    const enc = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await this.deriveKey(pin, salt);
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plaintext));
+    const combined = new Uint8Array(28 + ct.byteLength);
+    combined.set(salt, 0); combined.set(iv, 16); combined.set(new Uint8Array(ct), 28);
+    return btoa(String.fromCharCode(...combined));
+  },
+  async decrypt(encoded, pin) {
+    const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+    const key = await this.deriveKey(pin, bytes.slice(0, 16));
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(16, 28) }, key, bytes.slice(28));
+    return new TextDecoder().decode(pt);
+  },
+  async hash(str) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+  setSessionCookie(value, days = 30) {
+    document.cookie = `${SESSION_COOKIE}=${value}; expires=${new Date(Date.now() + days * 86400000).toUTCString()}; path=/; SameSite=Strict; Secure`;
+  },
+  getSessionCookie() {
+    const m = document.cookie.match(new RegExp(`(?:^|; )${SESSION_COOKIE}=([^;]*)`));
+    return m ? m[1] : null;
+  },
+  clearSessionCookie() {
+    document.cookie = `${SESSION_COOKIE}=; max-age=0; path=/; SameSite=Strict; Secure`;
+  }
+};
+
+// ================================================================
+// GIST SYNC MODULE
+// ================================================================
+let _cachedPin = null;
+let _cachedPat = null;
+let _gistSyncTimer = null;
+
+const GistSync = {
+  getConfig() { try { return JSON.parse(localStorage.getItem(GIST_CONFIG_KEY)); } catch { return null; } },
+  saveConfig(config) { localStorage.setItem(GIST_CONFIG_KEY, JSON.stringify(config)); },
+  clearConfig() { localStorage.removeItem(GIST_CONFIG_KEY); CryptoSync.clearSessionCookie(); _cachedPin = null; _cachedPat = null; },
+  isConfigured() { const c = this.getConfig(); return !!(c && c.gistId); },
+
+  async decryptPat(pin) {
+    if (_cachedPat) return _cachedPat;
+    const cfg = this.getConfig();
+    if (!cfg?.encryptedPat) throw new Error('No PAT configured');
+    _cachedPat = await CryptoSync.decrypt(cfg.encryptedPat, pin);
+    return _cachedPat;
+  },
+
+  async setup(pat, pin) {
+    const test = await fetch('https://api.github.com/user', { headers: { 'Authorization': `token ${pat}` } });
+    if (!test.ok) throw new Error('Invalid GitHub token');
+    const gistResp = await fetch('https://api.github.com/gists', {
+      method: 'POST',
+      headers: { 'Authorization': `token ${pat}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: 'Cognitive Globe — encrypted data', public: false, files: { 'cognitive_globe.enc': { content: 'setup' } } })
+    });
+    if (!gistResp.ok) throw new Error('Failed to create gist');
+    const gist = await gistResp.json();
+    const encryptedPat = await CryptoSync.encrypt(pat, pin);
+    const sessionKey = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
+    const encryptedPin = await CryptoSync.encrypt(pin, sessionKey);
+    this.saveConfig({ gistId: gist.id, encryptedPat, pinHash: await CryptoSync.hash(pin), encryptedPin });
+    CryptoSync.setSessionCookie(sessionKey);
+    _cachedPin = pin; _cachedPat = pat;
+  },
+
+  async recoverPin() {
+    const sessionKey = CryptoSync.getSessionCookie();
+    if (!sessionKey) return null;
+    const cfg = this.getConfig();
+    if (!cfg?.encryptedPin) return null;
+    try { _cachedPin = await CryptoSync.decrypt(cfg.encryptedPin, sessionKey); return _cachedPin; }
+    catch { CryptoSync.clearSessionCookie(); return null; }
+  },
+
+  async validatePin(pin) {
+    try {
+      await this.decryptPat(pin);
+      const sessionKey = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
+      const encryptedPin = await CryptoSync.encrypt(pin, sessionKey);
+      const cfg = this.getConfig(); cfg.encryptedPin = encryptedPin; this.saveConfig(cfg);
+      CryptoSync.setSessionCookie(sessionKey);
+      _cachedPin = pin; return true;
+    } catch { _cachedPat = null; return false; }
+  },
+
+  async push(jsonString, pin) {
+    const pat = await this.decryptPat(pin);
+    const cfg = this.getConfig();
+    const encrypted = await CryptoSync.encrypt(jsonString, pin);
+    setSyncStatus('syncing');
+    const resp = await fetch(`https://api.github.com/gists/${cfg.gistId}`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `token ${pat}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: { 'cognitive_globe.enc': { content: encrypted } } })
+    });
+    setSyncStatus(resp.ok ? 'synced' : 'error');
+    if (!resp.ok) throw new Error('Gist push failed');
+  },
+
+  async pull(pin) {
+    const pat = await this.decryptPat(pin);
+    const cfg = this.getConfig();
+    setSyncStatus('syncing');
+    const resp = await fetch(`https://api.github.com/gists/${cfg.gistId}`, { headers: { 'Authorization': `token ${pat}` } });
+    if (!resp.ok) { setSyncStatus('error'); throw new Error('Gist pull failed'); }
+    const gist = await resp.json();
+    const content = gist.files['cognitive_globe.enc']?.content;
+    if (!content || content === 'setup') { setSyncStatus('synced'); return null; }
+    try {
+      const decrypted = await CryptoSync.decrypt(content, pin);
+      setSyncStatus('synced');
+      return JSON.parse(decrypted);
+    } catch { setSyncStatus('error'); throw new Error('Failed to decrypt'); }
+  }
+};
+
+function setSyncStatus(status) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  el.className = status;
+  const icons = { syncing: '\u2601\u27f3', synced: '\u2601\u2713', error: '\u2601\u2717', offline: '\u2601' };
+  el.innerHTML = icons[status] || icons.offline;
+  el.title = { syncing: 'Syncing...', synced: 'Synced', error: 'Sync error', offline: 'Not synced' }[status] || '';
+}
+
+// ================================================================
+// STATE MANAGEMENT
+// ================================================================
+let state = { nodes: [], planets: [], undoStack: [], nowNodeId: null };
+
+function generateId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+function migrateState() {
+  if (!state.planets || state.planets.length === 0) state.planets = DEFAULT_PLANETS.map(p => ({ ...p }));
+  if (state.nowNodeId === undefined) state.nowNodeId = null;
+  state.nodes.forEach(n => {
+    if (!n.planetId) n.planetId = state.planets[0]?.id || 'planet_work';
+    if (n.mode === undefined) n.mode = null;
+    if (n.friction === undefined) n.friction = false;
+  });
+}
+
+function getStatePayload() {
+  return { nodes: state.nodes, planets: state.planets, nowNodeId: state.nowNodeId };
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      state.nodes = parsed.nodes || [];
+      state.planets = parsed.planets || [];
+      state.nowNodeId = parsed.nowNodeId || null;
+      const histRaw = localStorage.getItem(HISTORY_KEY);
+      state.undoStack = histRaw ? JSON.parse(histRaw) : [];
+    } else {
+      initDefaultNodes();
+    }
+    migrateState();
+  } catch (e) {
+    console.warn('Failed to load state', e);
+    initDefaultNodes();
+    migrateState();
+  }
+}
+
+function initDefaultNodes() {
+  state.planets = DEFAULT_PLANETS.map(p => ({ ...p }));
+  state.nodes = DEFAULT_NODES.map((n, i) => {
+    const angle = CATEGORY_ANGLES[n.category] + (Math.random() - 0.5) * 0.8;
+    const phi = Math.acos(Math.random() * 2 - 1);
+    const r = 4 + Math.random() * 2;
+    return {
+      id: generateId() + i, ...n, status: 'inactive',
+      position: { x: r * Math.sin(phi) * Math.cos(angle), y: r * Math.sin(phi) * Math.sin(angle), z: r * Math.cos(phi) },
+      createdAt: Date.now() - Math.random() * 30 * 86400000,
+      history: [{ action: 'created', date: Date.now() }],
+      mode: null, friction: false
+    };
+  });
+  state.nowNodeId = null;
+  saveStateLocal();
+}
+
+function saveStateLocal() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(getStatePayload()));
+    if (state.undoStack.length > 50) state.undoStack = state.undoStack.slice(-50);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(state.undoStack));
+  } catch (e) { console.warn('Save failed', e); }
+}
+
+function saveState() {
+  saveStateLocal();
+  if (GistSync.isConfigured() && _cachedPin) {
+    clearTimeout(_gistSyncTimer);
+    _gistSyncTimer = setTimeout(() => {
+      GistSync.push(JSON.stringify(getStatePayload()), _cachedPin).catch(() => showToast('Cloud sync failed', 'error'));
+    }, 2000);
+  }
+}
+
+function pushUndo(desc) {
+  state.undoStack.push({ description: desc, snapshot: JSON.parse(JSON.stringify(getStatePayload())), date: Date.now() });
+}
+
+function undo() {
+  if (state.undoStack.length === 0) { showToast('Nothing to undo', 'warning'); return; }
+  const prev = state.undoStack.pop();
+  state.nodes = prev.snapshot.nodes || [];
+  state.planets = prev.snapshot.planets || state.planets;
+  state.nowNodeId = prev.snapshot.nowNodeId || null;
+  saveState();
+  rebuildCurrentView();
+  updateOverlay();
+  showToast(`Undone: ${prev.description}`, 'success');
+}
+
+function getActiveNodes() { return state.nodes.filter(n => n.status === 'active'); }
+function getVisibleNodes(planetId) {
+  let nodes = state.nodes.filter(n => n.status !== 'archived' && n.status !== 'done');
+  if (planetId) nodes = nodes.filter(n => n.planetId === planetId);
+  return nodes;
+}
+function getInboxNodes() { return state.nodes.filter(n => n.status === 'inbox'); }
+
+function addNode(data, toInbox = false) {
+  pushUndo('add node');
+  const angle = CATEGORY_ANGLES[data.category || 'task'] + (Math.random() - 0.5) * 0.8;
+  const phi = Math.acos(Math.random() * 2 - 1);
+  const r = 4 + Math.random() * 2;
+  const position = { x: r * Math.sin(phi) * Math.cos(angle), y: r * Math.sin(phi) * Math.sin(angle), z: r * Math.cos(phi) };
+
+  const node = {
+    id: generateId(), title: data.title, description: data.description || '',
+    category: data.category || 'task', priority: data.priority || 'medium',
+    planetId: data.planetId || currentPlanetId || state.planets[0]?.id,
+    mode: data.mode || null, friction: false,
+    status: toInbox ? 'inbox' : 'inactive', position,
+    createdAt: Date.now(), history: [{ action: 'created', date: Date.now() }]
+  };
+  state.nodes.push(node);
+  saveState();
+  if (viewMode === 'planet' && node.planetId === currentPlanetId && !toInbox) addNodeToScene(node);
+  updateOverlay();
+  updateInboxBadge();
+  return node;
+}
+
+function updateNode(id, updates) {
+  const node = state.nodes.find(n => n.id === id);
+  if (!node) return;
+  pushUndo('edit node');
+  Object.assign(node, updates);
+  node.history.push({ action: 'edited', date: Date.now(), details: Object.keys(updates).join(', ') });
+  saveState();
+  if (viewMode === 'planet') updateNodeVisual(node);
+  updateOverlay();
+}
+
+function toggleActive(id) {
+  const node = state.nodes.find(n => n.id === id);
+  if (!node) return;
+  if (node.status === 'active') {
+    pushUndo('deactivate node');
+    node.status = 'inactive';
+    if (state.nowNodeId === id) state.nowNodeId = null;
+    node.history.push({ action: 'deactivated', date: Date.now() });
+  } else {
+    if (getActiveNodes().length >= MAX_ACTIVE) { showToast('Max 3 active nodes! Deactivate one first.', 'warning'); return; }
+    pushUndo('activate node');
+    node.status = 'active';
+    node.history.push({ action: 'activated', date: Date.now() });
+  }
+  saveState();
+  if (viewMode === 'planet') updateNodeVisual(node);
+  updateOverlay();
+  if (viewMode === 'planet') updateConnectionLines();
+  if (viewMode === 'solar') updateCrossPlanetLines();
+}
+
+function markDone(id) {
+  const node = state.nodes.find(n => n.id === id);
+  if (!node) return;
+  pushUndo('mark done');
+  node.status = 'done';
+  if (state.nowNodeId === id) state.nowNodeId = null;
+  node.history.push({ action: 'done', date: Date.now() });
+  saveState();
+  if (viewMode === 'planet') fadeOutNode(id);
+  recordDoneToday(node.title);
+  updateOverlay();
+  showToast(`"${node.title}" done!`, 'success');
+}
+
+function archiveNode(id) {
+  const node = state.nodes.find(n => n.id === id);
+  if (!node) return;
+  pushUndo('archive node');
+  node.status = 'archived';
+  if (state.nowNodeId === id) state.nowNodeId = null;
+  node.history.push({ action: 'archived', date: Date.now() });
+  saveState();
+  if (viewMode === 'planet') fadeOutNode(id);
+  updateOverlay();
+  showToast(`"${node.title}" archived`, 'success');
+}
+
+function restoreNode(id) {
+  const node = state.nodes.find(n => n.id === id);
+  if (!node) return;
+  pushUndo('restore node');
+  node.status = 'inactive';
+  node.history.push({ action: 'restored', date: Date.now() });
+  saveState();
+  if (viewMode === 'planet' && node.planetId === currentPlanetId) addNodeToScene(node);
+  updateOverlay();
+  showToast(`"${node.title}" restored`, 'success');
+}
+
+function moveFromInbox(id) {
+  const node = state.nodes.find(n => n.id === id);
+  if (!node || node.status !== 'inbox') return;
+  pushUndo('move from inbox');
+  node.status = 'inactive';
+  node.history.push({ action: 'moved from inbox', date: Date.now() });
+  saveState();
+  if (viewMode === 'planet') updateNodeVisual(node);
+  updateOverlay();
+  updateInboxBadge();
+}
+
+// NOW slot
+function setNow(nodeId) {
+  const node = state.nodes.find(n => n.id === nodeId);
+  if (!node || node.status !== 'active') return;
+  const prev = state.nowNodeId;
+  if (prev && prev !== nodeId) {
+    showSwitchPrompt(() => applyNow(nodeId));
+  } else {
+    applyNow(nodeId);
+  }
+}
+
+function applyNow(nodeId) {
+  const oldNow = state.nowNodeId;
+  state.nowNodeId = nodeId;
+  saveState();
+  if (viewMode === 'planet') {
+    if (oldNow) { const on = state.nodes.find(n => n.id === oldNow); if (on) updateNodeVisual(on); }
+    const nn = state.nodes.find(n => n.id === nodeId); if (nn) updateNodeVisual(nn);
+  }
+  updateOverlay();
+  updateTimerVisibility();
+}
+
+function clearNow() {
+  const old = state.nowNodeId;
+  state.nowNodeId = null;
+  saveState();
+  if (viewMode === 'planet' && old) { const on = state.nodes.find(n => n.id === old); if (on) updateNodeVisual(on); }
+  updateOverlay();
+  stopPomodoro();
+  updateTimerVisibility();
+}
+
+// Done today
+function getDoneToday() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TODAY_KEY));
+    const today = new Date().toISOString().slice(0, 10);
+    if (raw?.date === today) return raw;
+    return { date: today, count: 0, titles: [] };
+  } catch { return { date: new Date().toISOString().slice(0, 10), count: 0, titles: [] }; }
+}
+
+function recordDoneToday(title) {
+  const data = getDoneToday();
+  data.count++; data.titles.push(title);
+  localStorage.setItem(TODAY_KEY, JSON.stringify(data));
+  updateDoneTodayUI();
+}
+
+function updateDoneTodayUI() {
+  const data = getDoneToday();
+  const countEl = document.getElementById('done-count');
+  countEl.textContent = data.count;
+  countEl.classList.remove('check-anim');
+  void countEl.offsetWidth; // reflow
+  countEl.classList.add('check-anim');
+  const titlesEl = document.getElementById('done-titles');
+  titlesEl.innerHTML = data.titles.map(t => `<div>&#x2713; ${escapeHtml(t)}</div>`).join('');
+}
+
+// Export / Import
+function exportData() {
+  const blob = new Blob([JSON.stringify(getStatePayload(), null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `cognitive_globe_${new Date().toISOString().slice(0, 10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+  showToast('Data exported!', 'success');
+}
+
+function importData(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.nodes && Array.isArray(data.nodes)) {
+        pushUndo('import data');
+        state.nodes = data.nodes;
+        state.planets = data.planets || state.planets;
+        state.nowNodeId = data.nowNodeId || null;
+        migrateState();
+        saveState();
+        rebuildCurrentView();
+        updateOverlay();
+        updateInboxBadge();
+        showToast(`Imported ${data.nodes.length} nodes!`, 'success');
+      } else { showToast('Invalid file format', 'error'); }
+    } catch { showToast('Failed to parse file', 'error'); }
+  };
+  reader.readAsText(file);
+}
+
+// ================================================================
+// THREE.JS — Scene
+// ================================================================
+let scene, camera, renderer, controls;
+let nodeMeshes = new Map();
+let connectionLines = [];
+let crossPlanetLines = [];
+let planetMeshes = new Map();
+let solarCenterMesh = null;
+let orbitRings = [];
+let wireframeGlobe = null;
+
+let viewMode = 'solar'; // 'solar' | 'planet'
+let currentPlanetId = null;
+
+// Camera animation
+let cameraAnimating = false;
+let cameraAnimStart = null;
+let cameraAnimEnd = null;
+let cameraAnimProgress = 0;
+let cameraAnimDuration = 1.0;
+let cameraAnimCallback = null;
+
+let raycaster, mouse;
+let autoRotate = true;
+let idleTime = 0;
+let clock;
+
+function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+
+function animateCamera(targetPos, targetLookAt, duration, callback) {
+  cameraAnimStart = { pos: camera.position.clone(), target: controls.target.clone() };
+  cameraAnimEnd = { pos: targetPos.clone(), target: targetLookAt.clone() };
+  cameraAnimProgress = 0;
+  cameraAnimDuration = duration || 1.0;
+  cameraAnimating = true;
+  cameraAnimCallback = callback || null;
+  controls.enabled = false;
+}
+
+function initScene() {
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x0a0a1a, 1);
+  document.body.prepend(renderer.domElement);
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.enablePan = true;
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0x334466, 0.6));
+  const p1 = new THREE.PointLight(0x4488ff, 0.8, 100); p1.position.set(20, 20, 20); scene.add(p1);
+  const p2 = new THREE.PointLight(0x00cc88, 0.5, 100); p2.position.set(-20, -10, -20); scene.add(p2);
+
+  // Starfield
+  const starsGeo = new THREE.BufferGeometry();
+  const starPos = new Float32Array(2000 * 3);
+  for (let i = 0; i < 6000; i++) starPos[i] = (Math.random() - 0.5) * 300;
+  starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+  scene.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0x445566, size: 0.15, sizeAttenuation: true })));
+
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+  clock = new THREE.Clock();
+}
+
+function buildSolarSystem() {
+  // Center core
+  const coreGeo = new THREE.SphereGeometry(1.5, 32, 32);
+  const coreMat = new THREE.MeshPhongMaterial({ color: 0x66ccff, emissive: 0x3388aa, emissiveIntensity: 0.6, transparent: true, opacity: 0.8 });
+  solarCenterMesh = new THREE.Mesh(coreGeo, coreMat);
+  scene.add(solarCenterMesh);
+
+  // Planets
+  state.planets.forEach(planet => {
+    const group = new THREE.Group();
+    const color = new THREE.Color(planet.color);
+
+    // Planet sphere
+    const geo = new THREE.SphereGeometry(2, 24, 24);
+    const mat = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.3, transparent: true, opacity: 0.9 });
+    const sphere = new THREE.Mesh(geo, mat);
+    sphere.userData = { planetId: planet.id };
+    group.add(sphere);
+
+    // Node count badge
+    const count = state.nodes.filter(n => n.planetId === planet.id && n.status !== 'done' && n.status !== 'archived').length;
+
+    // Label
+    const label = createTextSprite(`${planet.name} (${count})`, false, planet.color);
+    label.position.set(0, 3.5, 0);
+    label.name = 'label';
+    group.add(label);
+
+    // Position on orbit
+    const angle = Math.random() * Math.PI * 2;
+    group.position.set(planet.orbitRadius * Math.cos(angle), 0, planet.orbitRadius * Math.sin(angle));
+    scene.add(group);
+
+    // Orbit ring
+    const ringGeo = new THREE.RingGeometry(planet.orbitRadius - 0.05, planet.orbitRadius + 0.05, 128);
+    const ringMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(planet.color), transparent: true, opacity: 0.06, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    scene.add(ring);
+    orbitRings.push(ring);
+
+    // Hit area for mobile
+    if (isMobile) {
+      const hitGeo = new THREE.SphereGeometry(4, 8, 8);
+      const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+      const hitSphere = new THREE.Mesh(hitGeo, hitMat);
+      hitSphere.userData = { planetId: planet.id };
+      hitSphere.name = 'hit-area';
+      group.add(hitSphere);
+    }
+
+    planetMeshes.set(planet.id, { sphere, label, group, orbitAngle: angle });
+  });
+
+  // Camera for solar view
+  camera.position.set(0, 35, 55);
+  controls.target.set(0, 0, 0);
+  controls.minDistance = 20;
+  controls.maxDistance = 120;
+  controls.update();
+
+  updateCrossPlanetLines();
+}
+
+function buildPlanetView(planetId) {
+  currentPlanetId = planetId;
+  viewMode = 'planet';
+
+  // Wireframe globe
+  const globeGeo = new THREE.SphereGeometry(3.8, 32, 32);
+  const globeMat = new THREE.MeshBasicMaterial({ color: 0x1a1a3a, wireframe: true, transparent: true, opacity: 0.08 });
+  wireframeGlobe = new THREE.Mesh(globeGeo, globeMat);
+  const planetEntry = planetMeshes.get(planetId);
+  if (planetEntry) wireframeGlobe.position.copy(planetEntry.group.position);
+  scene.add(wireframeGlobe);
+
+  // Add nodes for this planet
+  getVisibleNodes(planetId).forEach(node => addNodeToScene(node));
+  updateConnectionLines();
+
+  // Show back button
+  document.getElementById('back-to-solar-btn').style.display = '';
+
+  controls.minDistance = 5;
+  controls.maxDistance = 25;
+}
+
+function teardownPlanetView() {
+  nodeMeshes.forEach(entry => scene.remove(entry.group));
+  nodeMeshes.clear();
+  connectionLines.forEach(l => scene.remove(l));
+  connectionLines = [];
+  if (wireframeGlobe) { scene.remove(wireframeGlobe); wireframeGlobe = null; }
+  document.getElementById('back-to-solar-btn').style.display = 'none';
+}
+
+function zoomIntoPlanet(planetId) {
+  const entry = planetMeshes.get(planetId);
+  if (!entry) return;
+  const planetPos = entry.group.position.clone();
+  const camPos = planetPos.clone().add(new THREE.Vector3(0, 4, 12));
+  animateCamera(camPos, planetPos, 1.2, () => {
+    buildPlanetView(planetId);
+  });
+}
+
+function zoomOutToSolar() {
+  teardownPlanetView();
+  viewMode = 'solar';
+  currentPlanetId = null;
+  const solarCam = new THREE.Vector3(0, 35, 55);
+  const origin = new THREE.Vector3(0, 0, 0);
+  animateCamera(solarCam, origin, 1.2, () => {
+    controls.minDistance = 20;
+    controls.maxDistance = 120;
+    updateCrossPlanetLines();
+  });
+}
+
+function rebuildCurrentView() {
+  // Clear everything
+  nodeMeshes.forEach(e => scene.remove(e.group));
+  nodeMeshes.clear();
+  connectionLines.forEach(l => scene.remove(l));
+  connectionLines = [];
+  crossPlanetLines.forEach(l => scene.remove(l));
+  crossPlanetLines = [];
+  planetMeshes.forEach(e => scene.remove(e.group));
+  planetMeshes.clear();
+  orbitRings.forEach(r => scene.remove(r));
+  orbitRings = [];
+  if (solarCenterMesh) { scene.remove(solarCenterMesh); solarCenterMesh = null; }
+  if (wireframeGlobe) { scene.remove(wireframeGlobe); wireframeGlobe = null; }
+
+  if (viewMode === 'planet' && currentPlanetId) {
+    buildSolarSystem();
+    buildPlanetView(currentPlanetId);
+  } else {
+    viewMode = 'solar';
+    currentPlanetId = null;
+    buildSolarSystem();
+  }
+  updateInboxBadge();
+}
+
+// Node rendering
+function getNodeSize(node) {
+  const ageDays = (Date.now() - (node.createdAt || Date.now())) / 86400000;
+  return 0.15 + Math.min(ageDays / 30, 1) * 0.3;
+}
+
+function getNodeColor(node) {
+  if (node.friction && node.status !== 'active') return 0xff6633;
+  if (node.status === 'active') return 0x00ff88;
+  if (node.status === 'inbox') return 0x8888ff;
+  return 0x66ccff;
+}
+
+function addNodeToScene(node) {
+  if (nodeMeshes.has(node.id)) return;
+  const group = new THREE.Group();
+  const size = getNodeSize(node);
+  const color = getNodeColor(node);
+
+  // Sphere
+  const geo = new THREE.SphereGeometry(size, 16, 16);
+  const mat = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.3, transparent: true, opacity: node.status === 'inbox' ? 0.6 : 0.9 });
+  const sphere = new THREE.Mesh(geo, mat);
+  sphere.userData = { nodeId: node.id };
+  group.add(sphere);
+
+  // Glow ring for active
+  if (node.status === 'active') {
+    const isNow = node.id === state.nowNodeId;
+    const ringSize = isNow ? size * 2.2 : size * 1.5;
+    const ringGeo = new THREE.RingGeometry(ringSize * 0.85, ringSize, 32);
+    const ringColor = isNow ? 0xffcc33 : 0x00ff88;
+    const ringMat = new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: isNow ? 0.35 : 0.2, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.name = 'glow-ring';
+    group.add(ring);
+  }
+
+  // Mode badge
+  if (node.mode && MODE_COLORS[node.mode]) {
+    const badgeGeo = new THREE.SphereGeometry(0.06, 8, 8);
+    const badgeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(MODE_COLORS[node.mode]) });
+    const badge = new THREE.Mesh(badgeGeo, badgeMat);
+    badge.position.set(size + 0.12, -size * 0.5, 0);
+    badge.name = 'mode-badge';
+    group.add(badge);
+  }
+
+  // Text label
+  const label = createTextSprite(node.title, node.status === 'active');
+  label.position.set(0, size + 0.25, 0);
+  label.name = 'label';
+  group.add(label);
+
+  // Mobile hit area
+  if (isMobile) {
+    const hitGeo = new THREE.SphereGeometry(size * 2.5, 8, 8);
+    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+    const hitSphere = new THREE.Mesh(hitGeo, hitMat);
+    hitSphere.userData = { nodeId: node.id };
+    hitSphere.name = 'hit-area';
+    group.add(hitSphere);
+  }
+
+  // Position relative to planet
+  const planetEntry = planetMeshes.get(node.planetId);
+  const offset = planetEntry ? planetEntry.group.position : new THREE.Vector3(0, 0, 0);
+  group.position.set(offset.x + node.position.x, offset.y + node.position.y, offset.z + node.position.z);
+
+  scene.add(group);
+  nodeMeshes.set(node.id, { sphere, label, group, node });
+}
+
+function createTextSprite(text, isActive, colorHex) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const fontSize = 48;
+  ctx.font = `${isActive ? 'bold ' : ''}${fontSize}px Segoe UI, system-ui, sans-serif`;
+  const width = Math.min(ctx.measureText(text).width + 24, 512);
+  canvas.width = width;
+  canvas.height = fontSize + 16;
+  ctx.font = `${isActive ? 'bold ' : ''}${fontSize}px Segoe UI, system-ui, sans-serif`;
+  ctx.fillStyle = colorHex || (isActive ? '#00ff88' : '#ccddee');
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, width / 2, (fontSize + 16) / 2, width - 12);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(width / 200, (fontSize + 16) / 200, 1);
+  return sprite;
+}
+
+function updateNodeVisual(node) {
+  const entry = nodeMeshes.get(node.id);
+  if (!entry) {
+    if (node.status !== 'archived' && node.status !== 'done' && viewMode === 'planet' && node.planetId === currentPlanetId) addNodeToScene(node);
+    return;
+  }
+  // Remove old and re-add (simplest for all the visual states)
+  scene.remove(entry.group);
+  nodeMeshes.delete(node.id);
+  if (node.status !== 'archived' && node.status !== 'done') addNodeToScene(node);
+  updateConnectionLines();
+}
+
+function fadeOutNode(id) {
+  const entry = nodeMeshes.get(id);
+  if (!entry) return;
+  let opacity = 1;
+  const fadeInterval = setInterval(() => {
+    opacity -= 0.05;
+    if (opacity <= 0) { clearInterval(fadeInterval); scene.remove(entry.group); nodeMeshes.delete(id); updateConnectionLines(); }
+    else { entry.sphere.material.opacity = opacity; if (entry.label.material) entry.label.material.opacity = opacity; }
+  }, 30);
+}
+
+function updateConnectionLines() {
+  connectionLines.forEach(l => scene.remove(l));
+  connectionLines = [];
+  const activeNodes = getActiveNodes();
+  if (activeNodes.length < 2) return;
+  for (let i = 0; i < activeNodes.length; i++) {
+    for (let j = i + 1; j < activeNodes.length; j++) {
+      const a = nodeMeshes.get(activeNodes[i].id);
+      const b = nodeMeshes.get(activeNodes[j].id);
+      if (!a || !b) continue;
+      const geo = new THREE.BufferGeometry().setFromPoints([a.group.position.clone(), b.group.position.clone()]);
+      const mat = new THREE.LineBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.3 });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      connectionLines.push(line);
+    }
+  }
+}
+
+function updateCrossPlanetLines() {
+  crossPlanetLines.forEach(l => scene.remove(l));
+  crossPlanetLines = [];
+  if (viewMode !== 'solar') return;
+  const active = getActiveNodes();
+  const planetIds = [...new Set(active.map(n => n.planetId))];
+  if (planetIds.length < 2) return;
+  for (let i = 0; i < planetIds.length; i++) {
+    for (let j = i + 1; j < planetIds.length; j++) {
+      const a = planetMeshes.get(planetIds[i]);
+      const b = planetMeshes.get(planetIds[j]);
+      if (!a || !b) continue;
+      const geo = new THREE.BufferGeometry().setFromPoints([a.group.position.clone(), b.group.position.clone()]);
+      const mat = new THREE.LineDashedMaterial({ color: 0x00ff88, transparent: true, opacity: 0.2, dashSize: 1, gapSize: 0.5 });
+      const line = new THREE.Line(geo, mat);
+      line.computeLineDistances();
+      scene.add(line);
+      crossPlanetLines.push(line);
+    }
+  }
+}
+
+// ================================================================
+// ANIMATION LOOP
+// ================================================================
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  const time = clock.getElapsedTime();
+
+  // Camera animation
+  if (cameraAnimating) {
+    cameraAnimProgress += delta / cameraAnimDuration;
+    if (cameraAnimProgress >= 1) {
+      cameraAnimProgress = 1;
+      cameraAnimating = false;
+      camera.position.copy(cameraAnimEnd.pos);
+      controls.target.copy(cameraAnimEnd.target);
+      controls.enabled = true;
+      controls.update();
+      if (cameraAnimCallback) { cameraAnimCallback(); cameraAnimCallback = null; }
+    } else {
+      const t = easeInOutCubic(cameraAnimProgress);
+      camera.position.lerpVectors(cameraAnimStart.pos, cameraAnimEnd.pos, t);
+      controls.target.lerpVectors(cameraAnimStart.target, cameraAnimEnd.target, t);
+    }
+  }
+
+  // Auto-rotate (slow)
+  if (autoRotate && !cameraAnimating) {
+    idleTime += delta;
+    if (idleTime > 3) { controls.autoRotate = true; controls.autoRotateSpeed = 0.15; }
+  }
+  if (!cameraAnimating) controls.update();
+
+  // Solar system: planet orbits
+  if (viewMode === 'solar') {
+    planetMeshes.forEach((entry, pid) => {
+      const planet = state.planets.find(p => p.id === pid);
+      if (!planet) return;
+      entry.orbitAngle += planet.orbitSpeed * delta;
+      entry.group.position.x = planet.orbitRadius * Math.cos(entry.orbitAngle);
+      entry.group.position.z = planet.orbitRadius * Math.sin(entry.orbitAngle);
+      // Scale label to constant screen size regardless of distance
+      const dist = camera.position.distanceTo(entry.group.position);
+      const scale = dist * 0.04;
+      entry.label.scale.set(scale, scale * 0.3, 1);
+    });
+    // Update cross-planet line positions
+    if (crossPlanetLines.length > 0) updateCrossPlanetLines();
+    // Core pulse
+    if (solarCenterMesh) {
+      solarCenterMesh.material.emissiveIntensity = 0.4 + Math.sin(time * 0.8) * 0.2;
+    }
+  }
+
+  // Planet view: node floating + labels
+  if (viewMode === 'planet') {
+    nodeMeshes.forEach((entry, id) => {
+      const offset = id.charCodeAt(0) * 0.1;
+      entry.group.position.y += Math.sin(time * 0.5 + offset) * 0.0003;
+
+      // Glow ring
+      const ring = entry.group.getObjectByName('glow-ring');
+      if (ring) {
+        ring.lookAt(camera.position);
+        const isNow = entry.node.id === state.nowNodeId;
+        if (isNow) {
+          ring.material.opacity = 0.2 + Math.sin(time * 3 + offset) * 0.15;
+          const scale = 1.0 + Math.sin(time * 2) * 0.15;
+          ring.scale.set(scale, scale, 1);
+        } else {
+          ring.material.opacity = 0.15 + Math.sin(time * 2 + offset) * 0.08;
+        }
+      }
+
+      // Label fade with distance
+      const dist = camera.position.distanceTo(entry.group.position);
+      if (entry.label.material) entry.label.material.opacity = Math.max(0, Math.min(1, 1 - (dist - 6) / 12));
+    });
+
+    // Connection lines update
+    if (connectionLines.length > 0) {
+      const activeNodes = getActiveNodes();
+      let idx = 0;
+      for (let i = 0; i < activeNodes.length; i++) {
+        for (let j = i + 1; j < activeNodes.length; j++) {
+          if (idx >= connectionLines.length) break;
+          const a = nodeMeshes.get(activeNodes[i].id);
+          const b = nodeMeshes.get(activeNodes[j].id);
+          if (a && b) {
+            const pos = connectionLines[idx].geometry.attributes.position;
+            pos.setXYZ(0, a.group.position.x, a.group.position.y, a.group.position.z);
+            pos.setXYZ(1, b.group.position.x, b.group.position.y, b.group.position.z);
+            pos.needsUpdate = true;
+          }
+          idx++;
+        }
+      }
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+// ================================================================
+// UI — Overlay, toasts, done today
+// ================================================================
+function updateOverlay() {
+  const active = getActiveNodes();
+  const overlay = document.getElementById('active-overlay');
+  const list = document.getElementById('active-list');
+  overlay.querySelector('h3').innerHTML = `&#x1f3af; Focus (${active.length}/${MAX_ACTIVE})`;
+
+  if (active.length === 0) {
+    list.innerHTML = '<li class="empty-state">Click a node to focus on it</li>';
+    updateTimerVisibility();
+    return;
+  }
+
+  const nowNode = active.find(n => n.id === state.nowNodeId);
+  const onDeck = active.filter(n => n.id !== state.nowNodeId);
+
+  let html = '';
+  if (nowNode) {
+    html += `<div class="now-label">NOW</div>`;
+    html += renderActiveItem(nowNode, true);
+  }
+  if (onDeck.length > 0) {
+    if (nowNode) html += `<div class="on-deck-label">On Deck</div>`;
+    html += onDeck.map(n => renderActiveItem(n, false)).join('');
+  }
+
+  list.innerHTML = html;
+
+  // Attach handlers
+  list.querySelectorAll('[data-id]').forEach(el => {
+    const id = el.dataset.id;
+    el.querySelector('.now-btn')?.addEventListener('click', (e) => { e.stopPropagation(); setNow(id); });
+    el.querySelector('.deactivate-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleActive(id); });
+    el.addEventListener('click', () => openSidePanel(id));
+  });
+
+  updateTimerVisibility();
+  updateDoneTodayUI();
+}
+
+function renderActiveItem(node, isNow) {
+  return `<li data-id="${node.id}" class="${isNow ? 'now-item' : ''}">
+    <span class="priority-dot" style="background:${PRIORITY_COLORS[node.priority]}"></span>
+    <span class="node-title">${escapeHtml(node.title)}</span>
+    ${node.mode ? `<span style="color:${MODE_COLORS[node.mode]};font-size:10px;">${node.mode}</span>` : ''}
+    <button class="now-btn ${isNow ? 'is-now' : ''}" title="${isNow ? 'Current focus' : 'Set as NOW'}">&#x2605;</button>
+    <button class="deactivate-btn" title="Deactivate">&#x2715;</button>
+  </li>`;
+}
+
+function updateInboxBadge() {
+  const inbox = getInboxNodes();
+  const badge = document.getElementById('inbox-badge');
+  badge.style.display = inbox.length > 0 ? 'block' : 'none';
+  badge.querySelector('.badge-count').textContent = inbox.length;
+}
+
+function showToast(msg, type = '') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+
+// ================================================================
+// UI — Side Panel
+// ================================================================
+let currentPanelNodeId = null;
+
+function populatePlanetSelectors() {
+  const selects = [document.getElementById('panel-planet'), document.getElementById('qa-planet')];
+  selects.forEach(sel => {
+    if (!sel) return;
+    sel.innerHTML = state.planets.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  });
+}
+
+function openSidePanel(nodeId) {
+  const node = state.nodes.find(n => n.id === nodeId);
+  if (!node) return;
+  currentPanelNodeId = nodeId;
+  populatePlanetSelectors();
+
+  document.getElementById('panel-title').value = node.title;
+  document.getElementById('panel-desc').value = node.description || '';
+  document.getElementById('panel-planet').value = node.planetId;
+  document.getElementById('panel-category').value = node.category;
+  document.getElementById('panel-priority').value = node.priority;
+  document.getElementById('panel-mode').value = node.mode || '';
+
+  const toggleBtn = document.getElementById('panel-toggle-active');
+  toggleBtn.textContent = node.status === 'active' ? 'Deactivate' : 'Activate';
+  toggleBtn.className = node.status === 'active' ? 'panel-btn' : 'panel-btn success';
+
+  const frictionBtn = document.getElementById('panel-friction');
+  frictionBtn.className = node.friction ? 'panel-btn friction-on' : 'panel-btn';
+  frictionBtn.innerHTML = node.friction ? '&#x1f525; Friction ON' : '&#x1f525; Friction';
+
+  const archiveBtn = document.getElementById('panel-archive');
+  const restoreBtn = document.getElementById('panel-restore');
+  const doneBtn = document.getElementById('panel-done');
+  if (node.status === 'archived' || node.status === 'done') {
+    archiveBtn.style.display = 'none'; doneBtn.style.display = 'none'; restoreBtn.style.display = '';
+  } else {
+    archiveBtn.style.display = ''; doneBtn.style.display = ''; restoreBtn.style.display = 'none';
+  }
+
+  const histEl = document.getElementById('node-history');
+  histEl.innerHTML = (node.history || []).slice().reverse().map(h =>
+    `<div class="history-item"><span>${h.action}${h.details ? ': ' + h.details : ''}</span> <span class="hist-date">${new Date(h.date).toLocaleString()}</span></div>`
+  ).join('');
+
+  document.getElementById('side-panel').classList.add('open');
+}
+
+function closeSidePanel() { document.getElementById('side-panel').classList.remove('open'); currentPanelNodeId = null; }
+
+// Side panel events
+document.getElementById('panel-close').addEventListener('click', closeSidePanel);
+document.getElementById('panel-save').addEventListener('click', () => {
+  if (!currentPanelNodeId) return;
+  updateNode(currentPanelNodeId, {
+    title: document.getElementById('panel-title').value.trim(),
+    description: document.getElementById('panel-desc').value.trim(),
+    planetId: document.getElementById('panel-planet').value,
+    category: document.getElementById('panel-category').value,
+    priority: document.getElementById('panel-priority').value,
+    mode: document.getElementById('panel-mode').value || null,
+  });
+  showToast('Node saved', 'success');
+});
+document.getElementById('panel-toggle-active').addEventListener('click', () => { if (currentPanelNodeId) { toggleActive(currentPanelNodeId); openSidePanel(currentPanelNodeId); } });
+document.getElementById('panel-done').addEventListener('click', () => { if (currentPanelNodeId) { markDone(currentPanelNodeId); closeSidePanel(); } });
+document.getElementById('panel-archive').addEventListener('click', () => { if (currentPanelNodeId) { archiveNode(currentPanelNodeId); closeSidePanel(); } });
+document.getElementById('panel-restore').addEventListener('click', () => { if (currentPanelNodeId) { restoreNode(currentPanelNodeId); closeSidePanel(); } });
+document.getElementById('panel-friction').addEventListener('click', () => {
+  if (!currentPanelNodeId) return;
+  const node = state.nodes.find(n => n.id === currentPanelNodeId);
+  if (!node) return;
+  updateNode(currentPanelNodeId, { friction: !node.friction });
+  openSidePanel(currentPanelNodeId); // refresh
+});
+
+// ================================================================
+// UI — Quick Add Bar
+// ================================================================
+let quickAddToInbox = false;
+
+function openQuickAdd() {
+  populatePlanetSelectors();
+  if (currentPlanetId) document.getElementById('qa-planet').value = currentPlanetId;
+  document.getElementById('quick-add-bar').classList.add('visible');
+  document.getElementById('qa-title').focus();
+  autoRotate = false; controls.autoRotate = false;
+}
+
+function closeQuickAdd() {
+  document.getElementById('quick-add-bar').classList.remove('visible');
+  document.getElementById('qa-title').value = '';
+  autoRotate = true;
+}
+
+document.getElementById('add-btn').addEventListener('click', openQuickAdd);
+document.getElementById('qa-close').addEventListener('click', closeQuickAdd);
+document.getElementById('qa-inbox-btn').addEventListener('click', () => {
+  quickAddToInbox = !quickAddToInbox;
+  const btn = document.getElementById('qa-inbox-btn');
+  btn.textContent = quickAddToInbox ? '\u2713 Inbox ON' : 'Inbox';
+  btn.style.color = quickAddToInbox ? '#6fc' : '#88f';
+});
+document.getElementById('qa-title').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const title = e.target.value.trim();
+    if (!title) return;
+    addNode({
+      title,
+      planetId: document.getElementById('qa-planet').value,
+      category: document.getElementById('qa-category').value,
+      priority: document.getElementById('qa-priority').value
+    }, quickAddToInbox);
+    e.target.value = '';
+    showToast(quickAddToInbox ? `Inbox: "${title}"` : `Added: "${title}"`, 'success');
+  } else if (e.key === 'Escape') { closeQuickAdd(); }
+});
+
+// ================================================================
+// UI — List View
+// ================================================================
+function openListView() { renderListView(); document.getElementById('list-view').classList.add('visible'); document.getElementById('view-toggle-btn').classList.add('active-btn'); }
+function closeListView() { document.getElementById('list-view').classList.remove('visible'); document.getElementById('view-toggle-btn').classList.remove('active-btn'); }
+
+function renderListView() {
+  const content = document.getElementById('list-view-content');
+  const search = document.getElementById('search-input').value.toLowerCase();
+  const catFilter = document.getElementById('filter-category').value;
+  const statusFilter = document.getElementById('filter-status').value;
+
+  let nodes = state.nodes.filter(n => n.status !== 'done' && n.status !== 'archived');
+  if (search) nodes = nodes.filter(n => n.title.toLowerCase().includes(search) || (n.description || '').toLowerCase().includes(search));
+  if (catFilter !== 'all') nodes = nodes.filter(n => n.category === catFilter);
+  if (statusFilter !== 'all') nodes = nodes.filter(n => n.status === statusFilter);
+
+  // Group by planet, then by status within each planet
+  let html = '';
+  state.planets.forEach(planet => {
+    const planetNodes = nodes.filter(n => n.planetId === planet.id);
+    if (planetNodes.length === 0) return;
+    html += `<div class="list-section-title planet-title" style="color:${planet.color}">${planet.name}</div>`;
+    const inbox = planetNodes.filter(n => n.status === 'inbox');
+    const active = planetNodes.filter(n => n.status === 'active');
+    const inactive = planetNodes.filter(n => n.status === 'inactive');
+    if (inbox.length) { html += '<div class="list-section-title inbox-title" style="margin-left:12px;">Inbox</div>'; html += inbox.map(renderListItem).join(''); }
+    if (active.length) { html += '<div class="list-section-title" style="margin-left:12px;">Active</div>'; html += active.map(renderListItem).join(''); }
+    if (inactive.length) { html += inactive.map(renderListItem).join(''); }
+  });
+
+  if (!html) html = '<div class="empty-state" style="padding:40px;text-align:center;">No nodes match your filters</div>';
+  content.innerHTML = html;
+  content.querySelectorAll('.list-item').forEach(item => item.addEventListener('click', () => openSidePanel(item.dataset.id)));
+}
+
+function renderListItem(node) {
+  return `<div class="list-item ${node.status === 'active' ? 'active-item' : ''}" data-id="${node.id}">
+    <span class="li-priority" style="background:${PRIORITY_COLORS[node.priority]}"></span>
+    ${node.friction ? '<span class="li-friction">&#x1f525;</span>' : ''}
+    <span class="li-title">${escapeHtml(node.title)}</span>
+    ${node.mode ? `<span class="li-mode" style="background:${MODE_COLORS[node.mode]}22;color:${MODE_COLORS[node.mode]}">${node.mode}</span>` : ''}
+    <span class="li-category">${node.category}</span>
+    <span class="li-status">${node.status}</span>
+  </div>`;
+}
+
+document.getElementById('view-toggle-btn').addEventListener('click', () => {
+  document.getElementById('list-view').classList.contains('visible') ? closeListView() : openListView();
+});
+document.getElementById('list-close-btn').addEventListener('click', closeListView);
+
+// Search/filter reactivity
+['input', 'change'].forEach(ev => {
+  document.getElementById('search-input').addEventListener(ev, () => { if (document.getElementById('list-view').classList.contains('visible')) renderListView(); filterGlobeNodes(); });
+});
+['filter-category', 'filter-status'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => { if (document.getElementById('list-view').classList.contains('visible')) renderListView(); filterGlobeNodes(); });
+});
+
+function filterGlobeNodes() {
+  if (viewMode !== 'planet') return;
+  const search = document.getElementById('search-input').value.toLowerCase();
+  const catFilter = document.getElementById('filter-category').value;
+  const statusFilter = document.getElementById('filter-status').value;
+  nodeMeshes.forEach((entry, id) => {
+    const node = state.nodes.find(n => n.id === id);
+    if (!node) return;
+    let visible = true;
+    if (search && !node.title.toLowerCase().includes(search) && !(node.description || '').toLowerCase().includes(search)) visible = false;
+    if (catFilter !== 'all' && node.category !== catFilter) visible = false;
+    if (statusFilter !== 'all' && node.status !== statusFilter) visible = false;
+    entry.group.visible = visible;
+  });
+}
+
+// ================================================================
+// UI — Planet Manager
+// ================================================================
+document.getElementById('planets-btn').addEventListener('click', openPlanetManager);
+document.getElementById('planet-manager-close').addEventListener('click', closePlanetManager);
+document.getElementById('planet-add-btn').addEventListener('click', () => {
+  const id = 'planet_' + generateId();
+  const colors = ['#ff8866', '#66ffaa', '#8866ff', '#ff66aa', '#66aaff', '#ffaa66'];
+  const maxR = state.planets.reduce((m, p) => Math.max(m, p.orbitRadius), 0);
+  state.planets.push({ id, name: 'New Planet', color: colors[state.planets.length % colors.length], orbitRadius: maxR + 8, orbitSpeed: 0.01 });
+  saveState();
+  renderPlanetManager();
+});
+
+function openPlanetManager() { renderPlanetManager(); document.getElementById('planet-manager').classList.add('visible'); }
+function closePlanetManager() { document.getElementById('planet-manager').classList.remove('visible'); rebuildCurrentView(); }
+
+function renderPlanetManager() {
+  const content = document.getElementById('planet-manager-content');
+  content.innerHTML = state.planets.map(p => {
+    const count = state.nodes.filter(n => n.planetId === p.id).length;
+    return `<div class="planet-item" data-planet-id="${p.id}">
+      <input type="color" value="${p.color}" data-field="color" />
+      <input type="text" value="${escapeHtml(p.name)}" data-field="name" />
+      <span class="planet-count">${count} nodes</span>
+      <button class="planet-delete" title="Delete planet"${state.planets.length <= 1 ? ' disabled style="opacity:0.3"' : ''}>&#x2715;</button>
+    </div>`;
+  }).join('');
+
+  content.querySelectorAll('.planet-item').forEach(item => {
+    const pid = item.dataset.planetId;
+    item.querySelector('[data-field="name"]').addEventListener('change', (e) => {
+      const p = state.planets.find(x => x.id === pid); if (p) { p.name = e.target.value.trim(); saveState(); }
+    });
+    item.querySelector('[data-field="color"]').addEventListener('change', (e) => {
+      const p = state.planets.find(x => x.id === pid); if (p) { p.color = e.target.value; saveState(); }
+    });
+    item.querySelector('.planet-delete').addEventListener('click', () => {
+      if (state.planets.length <= 1) return;
+      const remaining = state.planets.filter(x => x.id !== pid);
+      // Move orphaned nodes to first remaining planet
+      state.nodes.filter(n => n.planetId === pid).forEach(n => { n.planetId = remaining[0].id; });
+      state.planets = remaining;
+      saveState();
+      renderPlanetManager();
+    });
+  });
+}
+
+// ================================================================
+// UI — Inbox, Export, Import
+// ================================================================
+document.getElementById('inbox-btn').addEventListener('click', () => { document.getElementById('filter-status').value = 'inbox'; openListView(); });
+document.getElementById('export-btn').addEventListener('click', exportData);
+document.getElementById('import-btn').addEventListener('click', () => document.getElementById('import-file').click());
+document.getElementById('import-file').addEventListener('change', (e) => { if (e.target.files[0]) { importData(e.target.files[0]); e.target.value = ''; } });
+
+// Done today toggle
+document.getElementById('done-today').addEventListener('click', () => {
+  document.getElementById('done-titles').classList.toggle('expanded');
+});
+
+// Back to solar
+document.getElementById('back-to-solar-btn').addEventListener('click', zoomOutToSolar);
+
+// ================================================================
+// POMODORO TIMER
+// ================================================================
+let pomodoroState = { running: false, paused: false, remaining: 0, interval: null };
+
+function updateTimerVisibility() {
+  const el = document.getElementById('pomodoro-timer');
+  el.classList.toggle('visible', !!state.nowNodeId);
+}
+
+function startPomodoro(minutes) {
+  stopPomodoro();
+  pomodoroState.remaining = minutes * 60;
+  pomodoroState.running = true;
+  pomodoroState.paused = false;
+  updateTimerDisplay();
+  pomodoroState.interval = setInterval(() => {
+    if (pomodoroState.paused) return;
+    pomodoroState.remaining--;
+    updateTimerDisplay();
+    if (pomodoroState.remaining <= 0) {
+      stopPomodoro();
+      playBeep();
+      showToast('Timer done! Take a break.', 'success');
+    }
+  }, 1000);
+}
+
+function stopPomodoro() {
+  if (pomodoroState.interval) clearInterval(pomodoroState.interval);
+  pomodoroState = { running: false, paused: false, remaining: 0, interval: null };
+  document.getElementById('timer-display').textContent = '--:--';
+}
+
+function updateTimerDisplay() {
+  const m = Math.floor(pomodoroState.remaining / 60);
+  const s = pomodoroState.remaining % 60;
+  document.getElementById('timer-display').textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 800; gain.gain.value = 0.3;
+    osc.start(); osc.stop(ctx.currentTime + 0.3);
+  } catch {}
+}
+
+// Timer button events
+document.querySelectorAll('.timer-btn[data-mins]').forEach(btn => {
+  btn.addEventListener('click', () => startPomodoro(parseInt(btn.dataset.mins)));
+});
+document.getElementById('timer-pause').addEventListener('click', () => {
+  if (!pomodoroState.running) return;
+  pomodoroState.paused = !pomodoroState.paused;
+  document.getElementById('timer-pause').innerHTML = pomodoroState.paused ? '&#x25b6;' : '&#x23f8;';
+});
+document.getElementById('timer-stop').addEventListener('click', stopPomodoro);
+
+// ================================================================
+// SWITCH PROMPT
+// ================================================================
+function showSwitchPrompt(callback) {
+  const overlay = document.getElementById('switch-overlay');
+  overlay.classList.add('visible');
+  let count = 3;
+  document.getElementById('switch-countdown').textContent = count;
+  const interval = setInterval(() => {
+    count--;
+    document.getElementById('switch-countdown').textContent = count;
+    if (count <= 0) { clearInterval(interval); overlay.classList.remove('visible'); callback(); }
+  }, 1000);
+  const skip = () => { clearInterval(interval); overlay.classList.remove('visible'); callback(); };
+  overlay.addEventListener('click', skip, { once: true });
+}
+
+// ================================================================
+// INTERACTION — Raycast + mouse + touch
+// ================================================================
+function raycastFromPoint(clientX, clientY) {
+  mouse.x = (clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  if (viewMode === 'solar') {
+    const targets = [];
+    planetMeshes.forEach(entry => {
+      targets.push(entry.sphere);
+      const hit = entry.group.getObjectByName('hit-area');
+      if (hit) targets.push(hit);
+    });
+    const intersects = raycaster.intersectObjects(targets);
+    return intersects.length > 0 ? { type: 'planet', id: intersects[0].object.userData.planetId } : null;
+  } else {
+    const targets = [];
+    nodeMeshes.forEach(entry => {
+      targets.push(entry.sphere);
+      const hit = entry.group.getObjectByName('hit-area');
+      if (hit) targets.push(hit);
+    });
+    const intersects = raycaster.intersectObjects(targets);
+    return intersects.length > 0 ? { type: 'node', id: intersects[0].object.userData.nodeId } : null;
+  }
+}
+
+function isUIOpen() {
+  return document.getElementById('quick-add-bar').classList.contains('visible') ||
+         document.getElementById('list-view').classList.contains('visible') ||
+         document.getElementById('side-panel').classList.contains('open') ||
+         document.getElementById('planet-manager').classList.contains('visible');
+}
+
+function onMouseClick(event) {
+  if (isUIOpen() || cameraAnimating) return;
+  const hit = raycastFromPoint(event.clientX, event.clientY);
+  if (!hit) return;
+  if (hit.type === 'planet') zoomIntoPlanet(hit.id);
+  else if (hit.type === 'node') openSidePanel(hit.id);
+}
+
+function onMouseDblClick(event) {
+  if (cameraAnimating) return;
+  const hit = raycastFromPoint(event.clientX, event.clientY);
+  if (!hit) return;
+  if (hit.type === 'planet') zoomIntoPlanet(hit.id);
+  else if (hit.type === 'node') toggleActive(hit.id);
+}
+
+function onInteractionStart() { idleTime = 0; controls.autoRotate = false; }
+
+// Touch handlers
+let touchStartTime = 0, touchStartPos = { x: 0, y: 0 }, touchMoved = false, longPressTimer = null;
+
+function onTouchStart(e) {
+  if (e.touches.length !== 1) return;
+  touchStartTime = Date.now();
+  touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  touchMoved = false;
+  longPressTimer = setTimeout(() => {
+    if (!touchMoved) {
+      const hit = raycastFromPoint(touchStartPos.x, touchStartPos.y);
+      if (hit?.type === 'node') { toggleActive(hit.id); navigator.vibrate?.(50); }
+    }
+  }, 500);
+}
+
+function onTouchMove(e) {
+  if (e.touches.length !== 1) return;
+  const dx = e.touches[0].clientX - touchStartPos.x;
+  const dy = e.touches[0].clientY - touchStartPos.y;
+  if (Math.sqrt(dx * dx + dy * dy) > 10) { touchMoved = true; clearTimeout(longPressTimer); }
+}
+
+function onTouchEnd(e) {
+  clearTimeout(longPressTimer);
+  if (!touchMoved && Date.now() - touchStartTime < 300 && !isUIOpen()) {
+    const hit = raycastFromPoint(touchStartPos.x, touchStartPos.y);
+    if (hit) {
+      e.preventDefault();
+      if (hit.type === 'planet') zoomIntoPlanet(hit.id);
+      else if (hit.type === 'node') openSidePanel(hit.id);
+    }
+  }
+}
+
+function attachRendererEvents() {
+  renderer.domElement.addEventListener('click', onMouseClick);
+  renderer.domElement.addEventListener('dblclick', onMouseDblClick);
+  renderer.domElement.addEventListener('pointerdown', onInteractionStart);
+  renderer.domElement.addEventListener('wheel', onInteractionStart);
+  if (isMobile) {
+    renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false });
+    renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: true });
+    renderer.domElement.addEventListener('touchend', onTouchEnd, { passive: false });
+  }
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
+  document.addEventListener('gesturechange', (e) => e.preventDefault());
+}
+
+// ================================================================
+// MOBILE UI
+// ================================================================
+(function setupMobileUI() {
+  const menuBtn = document.getElementById('mobile-menu-btn');
+  const controlsBar = document.getElementById('controls-bar');
+  if (menuBtn) {
+    menuBtn.addEventListener('click', (e) => { e.stopPropagation(); controlsBar.classList.toggle('expanded'); });
+    document.addEventListener('click', (e) => { if (!controlsBar.contains(e.target)) controlsBar.classList.remove('expanded'); });
+  }
+  if (isMobile) {
+    const overlay = document.getElementById('active-overlay');
+    overlay.classList.add('collapsed');
+    overlay.addEventListener('click', (e) => { if (e.target.closest('h3')) overlay.classList.toggle('collapsed'); });
+  }
+})();
+
+// ================================================================
+// KEYBOARD SHORTCUTS
+// ================================================================
+document.addEventListener('keydown', (e) => {
+  const tag = document.activeElement.tagName.toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+    if (e.key === 'Escape') { closeQuickAdd(); closeSidePanel(); document.activeElement.blur(); }
+    return;
+  }
+  if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openQuickAdd(); }
+  else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); document.getElementById('list-view').classList.contains('visible') ? closeListView() : openListView(); }
+  else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); }
+  else if (e.key === 'Escape') { closeQuickAdd(); closeSidePanel(); closeListView(); closePlanetManager(); if (viewMode === 'planet') zoomOutToSolar(); }
+  else if (e.key === 'Backspace' && viewMode === 'planet') { zoomOutToSolar(); }
+});
+
+// ================================================================
+// RESPONSIVE RESIZE
+// ================================================================
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ================================================================
+// LOCK SCREEN
+// ================================================================
+function showLockScreen(view) {
+  document.getElementById('lock-screen').classList.remove('hidden');
+  document.getElementById('lock-setup').style.display = view === 'setup' ? 'block' : 'none';
+  document.getElementById('lock-unlock').style.display = view === 'unlock' ? 'block' : 'none';
+  if (view === 'unlock') document.getElementById('unlock-pin').focus();
+  if (view === 'setup') document.getElementById('setup-pat').focus();
+}
+function hideLockScreen() { document.getElementById('lock-screen').classList.add('hidden'); }
+
+document.getElementById('setup-btn').addEventListener('click', async () => {
+  const pat = document.getElementById('setup-pat').value.trim();
+  const pin = document.getElementById('setup-pin').value.trim();
+  const pinConfirm = document.getElementById('setup-pin-confirm').value.trim();
+  const err = document.getElementById('setup-error');
+  const btn = document.getElementById('setup-btn');
+  err.textContent = '';
+  if (!pat) { err.textContent = 'Enter your GitHub PAT'; return; }
+  if (!/^(ghp_|github_pat_)/.test(pat)) { err.textContent = 'PAT should start with ghp_ or github_pat_'; return; }
+  if (!/^\d{4}$/.test(pin)) { err.textContent = 'PIN must be 4 digits'; return; }
+  if (pin !== pinConfirm) { err.textContent = 'PINs do not match'; return; }
+  btn.disabled = true; btn.textContent = 'Setting up...';
+  try { await GistSync.setup(pat, pin); hideLockScreen(); bootApp(); showToast('Cloud sync ready!', 'success'); }
+  catch (e) { err.textContent = e.message; btn.disabled = false; btn.textContent = 'Set Up Sync'; }
+});
+
+document.getElementById('skip-setup-btn').addEventListener('click', () => { hideLockScreen(); setSyncStatus('offline'); bootApp(); });
+
+document.getElementById('unlock-btn').addEventListener('click', async () => {
+  const pin = document.getElementById('unlock-pin').value.trim();
+  const err = document.getElementById('unlock-error');
+  const btn = document.getElementById('unlock-btn');
+  const card = document.getElementById('lock-unlock');
+  err.textContent = '';
+  if (!/^\d{4}$/.test(pin)) { err.textContent = 'PIN must be 4 digits'; return; }
+  btn.disabled = true; btn.textContent = 'Unlocking...';
+  if (await GistSync.validatePin(pin)) { hideLockScreen(); bootApp(); }
+  else { err.textContent = 'Wrong PIN'; card.classList.add('shake'); setTimeout(() => card.classList.remove('shake'), 300); btn.disabled = false; btn.textContent = 'Unlock'; }
+});
+
+document.getElementById('unlock-pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('unlock-btn').click(); });
+document.getElementById('setup-pin-confirm').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('setup-btn').click(); });
+document.getElementById('reset-btn').addEventListener('click', () => { if (confirm('Clear sync setup? You can set it up again.')) { GistSync.clearConfig(); showLockScreen('setup'); } });
+
+// ================================================================
+// BOOT
+// ================================================================
+function bootApp() {
+  loadState();
+  initScene();
+  buildSolarSystem();
+  attachRendererEvents();
+  updateOverlay();
+  updateInboxBadge();
+  updateDoneTodayUI();
+  populatePlanetSelectors();
+  animate();
+
+  // Friction nudge interval (every 15 min)
+  setInterval(() => {
+    const frictionNodes = state.nodes.filter(n => n.friction && n.status !== 'done' && n.status !== 'archived');
+    if (frictionNodes.length > 0) {
+      const pick = frictionNodes[Math.floor(Math.random() * frictionNodes.length)];
+      showToast(`5 minutes on "${pick.title}"?`, 'warning');
+    }
+  }, 15 * 60 * 1000);
+
+  // Background gist sync
+  if (GistSync.isConfigured() && _cachedPin) {
+    setSyncStatus('syncing');
+    GistSync.pull(_cachedPin).then(remote => {
+      if (remote?.nodes?.length > 0) {
+        state.nodes = remote.nodes;
+        state.planets = remote.planets || state.planets;
+        state.nowNodeId = remote.nowNodeId || null;
+        migrateState();
+        saveStateLocal();
+        rebuildCurrentView();
+        updateOverlay();
+        updateInboxBadge();
+      }
+      setSyncStatus('synced');
+    }).catch(() => setSyncStatus('error'));
+  }
+}
+
+// ================================================================
+// INIT
+// ================================================================
+(async function initApp() {
+  if (GistSync.isConfigured()) {
+    const pin = await GistSync.recoverPin();
+    if (pin) { hideLockScreen(); bootApp(); }
+    else showLockScreen('unlock');
+  } else {
+    showLockScreen('setup');
+  }
+})();
+
+</script>
+</body>
+</html>
