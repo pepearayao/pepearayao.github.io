@@ -220,12 +220,16 @@ canvas { display: block; touch-action: none; }
   z-index: 100;
   display: none;
 }
-#sectors-toggle-btn {
+#sectors-toggle-btn, #map-toggle-btn {
   position: fixed;
   bottom: 28px;
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 100;
+}
+#sectors-toggle-btn {
+  left: calc(50% - 64px);
+}
+#map-toggle-btn {
+  left: calc(50% + 64px);
 }
 
 /* ============================================================
@@ -640,7 +644,7 @@ canvas { display: block; touch-action: none; }
   #inbox-badge { bottom: 16px; left: 16px; }
   #shortcut-hint { display: none; }
   #back-to-solar-btn { top: auto; bottom: 80px; left: 16px; }
-  #sectors-toggle-btn { bottom: 80px; }
+  #sectors-toggle-btn, #map-toggle-btn { bottom: 80px; }
 }
 </style>
 </head>
@@ -698,6 +702,9 @@ canvas { display: block; touch-action: none; }
 
 <!-- Sectors View Toggle Button -->
 <button class="ctrl-btn" id="sectors-toggle-btn" title="Toggle Sectors view (S)">&#x25d4; Sectors</button>
+
+<!-- Map View Toggle Button -->
+<button class="ctrl-btn" id="map-toggle-btn" title="Toggle 2D Map view (M)">&#x25a6; Map</button>
 
 <!-- Floating Add Button -->
 <button id="add-btn" title="Add node (N)">+</button>
@@ -823,7 +830,7 @@ canvas { display: block; touch-action: none; }
 </div>
 
 <!-- Keyboard Shortcut Hint -->
-<div id="shortcut-hint">N: add &bull; L: list &bull; S: sectors &bull; Ctrl+Z: undo &bull; Esc: close</div>
+<div id="shortcut-hint">N: add &bull; L: list &bull; S: sectors &bull; M: map &bull; Ctrl+Z: undo &bull; Esc: close</div>
 
 <!-- Lock Screen -->
 <div id="lock-screen">
@@ -1152,7 +1159,8 @@ function addNode(data, toInbox = false) {
   };
   state.nodes.push(node);
   saveState();
-  if (viewMode === 'sectors' && !toInbox) addNodeToSceneSectors(node);
+  if (viewMode === 'map' && !toInbox) rebuildCurrentView();
+  else if (viewMode === 'sectors' && !toInbox) addNodeToSceneSectors(node);
   else if (viewMode === 'planet' && node.planetId === currentPlanetId && !toInbox) addNodeToScene(node);
   updateOverlay();
   updateInboxBadge();
@@ -1166,7 +1174,7 @@ function updateNode(id, updates) {
   Object.assign(node, updates);
   node.history.push({ action: 'edited', date: Date.now(), details: Object.keys(updates).join(', ') });
   saveState();
-  if (viewMode === 'planet' || viewMode === 'sectors') updateNodeVisual(node);
+  if (viewMode === 'planet' || viewMode === 'sectors' || viewMode === 'map') updateNodeVisual(node);
   updateOverlay();
 }
 
@@ -1185,9 +1193,9 @@ function toggleActive(id) {
     node.history.push({ action: 'activated', date: Date.now() });
   }
   saveState();
-  if (viewMode === 'planet' || viewMode === 'sectors') updateNodeVisual(node);
+  if (viewMode === 'planet' || viewMode === 'sectors' || viewMode === 'map') updateNodeVisual(node);
   updateOverlay();
-  if (viewMode === 'planet' || viewMode === 'sectors') updateConnectionLines();
+  if (viewMode === 'planet' || viewMode === 'sectors' || viewMode === 'map') updateConnectionLines();
   if (viewMode === 'solar') updateCrossPlanetLines();
 }
 
@@ -1199,7 +1207,7 @@ function markDone(id) {
   if (state.nowNodeId === id) state.nowNodeId = null;
   node.history.push({ action: 'done', date: Date.now() });
   saveState();
-  if (viewMode === 'planet' || viewMode === 'sectors') fadeOutNode(id);
+  if (viewMode === 'planet' || viewMode === 'sectors' || viewMode === 'map') fadeOutNode(id);
   recordDoneToday(node.title);
   updateOverlay();
   showToast(`"${node.title}" done!`, 'success');
@@ -1213,7 +1221,7 @@ function archiveNode(id) {
   if (state.nowNodeId === id) state.nowNodeId = null;
   node.history.push({ action: 'archived', date: Date.now() });
   saveState();
-  if (viewMode === 'planet' || viewMode === 'sectors') fadeOutNode(id);
+  if (viewMode === 'planet' || viewMode === 'sectors' || viewMode === 'map') fadeOutNode(id);
   updateOverlay();
   showToast(`"${node.title}" archived`, 'success');
 }
@@ -1225,7 +1233,8 @@ function restoreNode(id) {
   node.status = 'inactive';
   node.history.push({ action: 'restored', date: Date.now() });
   saveState();
-  if (viewMode === 'sectors') addNodeToSceneSectors(node);
+  if (viewMode === 'map') rebuildCurrentView();
+  else if (viewMode === 'sectors') addNodeToSceneSectors(node);
   else if (viewMode === 'planet' && node.planetId === currentPlanetId) addNodeToScene(node);
   updateOverlay();
   showToast(`"${node.title}" restored`, 'success');
@@ -1238,7 +1247,7 @@ function moveFromInbox(id) {
   node.status = 'inactive';
   node.history.push({ action: 'moved from inbox', date: Date.now() });
   saveState();
-  if (viewMode === 'planet' || viewMode === 'sectors') updateNodeVisual(node);
+  if (viewMode === 'planet' || viewMode === 'sectors' || viewMode === 'map') updateNodeVisual(node);
   updateOverlay();
   updateInboxBadge();
 }
@@ -1259,7 +1268,7 @@ function applyNow(nodeId) {
   const oldNow = state.nowNodeId;
   state.nowNodeId = nodeId;
   saveState();
-  if (viewMode === 'planet' || viewMode === 'sectors') {
+  if (viewMode === 'planet' || viewMode === 'sectors' || viewMode === 'map') {
     if (oldNow) { const on = state.nodes.find(n => n.id === oldNow); if (on) updateNodeVisual(on); }
     const nn = state.nodes.find(n => n.id === nodeId); if (nn) updateNodeVisual(nn);
   }
@@ -1271,7 +1280,7 @@ function clearNow() {
   const old = state.nowNodeId;
   state.nowNodeId = null;
   saveState();
-  if ((viewMode === 'planet' || viewMode === 'sectors') && old) { const on = state.nodes.find(n => n.id === old); if (on) updateNodeVisual(on); }
+  if ((viewMode === 'planet' || viewMode === 'sectors' || viewMode === 'map') && old) { const on = state.nodes.find(n => n.id === old); if (on) updateNodeVisual(on); }
   updateOverlay();
   stopPomodoro();
   updateTimerVisibility();
@@ -1349,10 +1358,13 @@ let solarCenterMesh = null;
 let orbitRings = [];
 let wireframeGlobe = null;
 
-let viewMode = 'solar'; // 'solar' | 'planet' | 'sectors'
+let viewMode = 'solar'; // 'solar' | 'planet' | 'sectors' | 'map'
 let currentPlanetId = null;
 let sectorDividers = [];
 let sectorLabels = [];
+let mapClusterLines = [];
+let mapClusterLabels = [];
+let mapClusterCircles = [];
 
 // Camera animation
 let cameraAnimating = false;
@@ -1410,7 +1422,7 @@ function initScene() {
   clock = new THREE.Clock();
 }
 
-function buildSolarSystem() {
+function buildSolarSystem(resetCamera = true) {
   // Center core
   const coreGeo = new THREE.SphereGeometry(1.5, 32, 32);
   const coreMat = new THREE.MeshPhongMaterial({ color: 0x66ccff, emissive: 0x3388aa, emissiveIntensity: 0.6, transparent: true, opacity: 0.8 });
@@ -1466,11 +1478,13 @@ function buildSolarSystem() {
   });
 
   // Camera for solar view
-  camera.position.set(0, 35, 55);
-  controls.target.set(0, 0, 0);
-  controls.minDistance = 20;
-  controls.maxDistance = 120;
-  controls.update();
+  if (resetCamera) {
+    camera.position.set(0, 35, 55);
+    controls.target.set(0, 0, 0);
+    controls.minDistance = 20;
+    controls.maxDistance = 120;
+    controls.update();
+  }
 
   updateCrossPlanetLines();
 }
@@ -1546,7 +1560,7 @@ function getNodeWorldPositionForSector(node) {
   return { x: r * Math.cos(mappedAngle), y: node.position.y, z: r * Math.sin(mappedAngle) };
 }
 
-function buildSectorsView() {
+function buildSectorsView(resetCamera = true) {
   viewMode = 'sectors';
   currentPlanetId = null;
 
@@ -1587,12 +1601,14 @@ function buildSectorsView() {
   updateConnectionLines();
 
   // Camera
-  const camPos = new THREE.Vector3(0, 5, 14);
-  const origin = new THREE.Vector3(0, 0, 0);
-  animateCamera(camPos, origin, 1.2, () => {
-    controls.minDistance = 6;
-    controls.maxDistance = 30;
-  });
+  if (resetCamera) {
+    const camPos = new THREE.Vector3(0, 5, 14);
+    const origin = new THREE.Vector3(0, 0, 0);
+    animateCamera(camPos, origin, 1.2, () => {
+      controls.minDistance = 6;
+      controls.maxDistance = 30;
+    });
+  }
 
   // UI
   document.getElementById('back-to-solar-btn').style.display = 'none';
@@ -1674,7 +1690,9 @@ function teardownSectorsView() {
 }
 
 function switchToSectorsView() {
+  if (viewMode === 'sectors') return;
   if (viewMode === 'planet') teardownPlanetView();
+  if (viewMode === 'map') teardownMapView();
   if (viewMode === 'solar') {
     // Clear solar system
     planetMeshes.forEach(e => scene.remove(e.group));
@@ -1690,6 +1708,200 @@ function switchToSectorsView() {
 
 function switchFromSectorsToSolar() {
   teardownSectorsView();
+  viewMode = 'solar';
+  currentPlanetId = null;
+  buildSolarSystem();
+}
+
+// ================================================================
+// MAP VIEW (2D mind map)
+// ================================================================
+function getMapClusterPositions() {
+  const N = state.planets.length;
+  const clusterRadius = N <= 3 ? 12 : N <= 5 ? 16 : 20;
+  const positions = [];
+  for (let i = 0; i < N; i++) {
+    const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
+    positions.push({
+      x: clusterRadius * Math.cos(angle),
+      z: clusterRadius * Math.sin(angle)
+    });
+  }
+  return positions;
+}
+
+function getMapNodePosition(node, clusterCenter, nodeIndex, totalNodes) {
+  const nodesPerRing = 6;
+  const ringSpacing = 2.0;
+  const ring = Math.floor(nodeIndex / nodesPerRing);
+  const indexInRing = nodeIndex % nodesPerRing;
+  const nodesInThisRing = Math.min(nodesPerRing, totalNodes - ring * nodesPerRing);
+  const angle = (indexInRing / nodesInThisRing) * Math.PI * 2 + ring * 0.5;
+  const r = 2.5 + ring * ringSpacing;
+  return {
+    x: clusterCenter.x + r * Math.cos(angle),
+    y: 0,
+    z: clusterCenter.z + r * Math.sin(angle)
+  };
+}
+
+function buildMapView(resetCamera = true) {
+  viewMode = 'map';
+  currentPlanetId = null;
+
+  const N = state.planets.length;
+  const clusterPositions = getMapClusterPositions();
+
+  // For each planet: label, boundary circle, and nodes
+  state.planets.forEach((planet, i) => {
+    const center = clusterPositions[i];
+    const nodes = getVisibleNodes(planet.id);
+
+    // Cluster boundary circle
+    const circleRadius = Math.max(4, 2.5 + Math.ceil(nodes.length / 6) * 2.0);
+    const circleGeo = new THREE.RingGeometry(circleRadius - 0.05, circleRadius + 0.05, 64);
+    const circleMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(planet.color), transparent: true, opacity: 0.12, side: THREE.DoubleSide });
+    const circle = new THREE.Mesh(circleGeo, circleMat);
+    circle.rotation.x = -Math.PI / 2;
+    circle.position.set(center.x, -0.01, center.z);
+    scene.add(circle);
+    mapClusterCircles.push(circle);
+
+    // Planet label at cluster center
+    const label = createTextSprite(planet.name, false, planet.color);
+    label.position.set(center.x, 1.5, center.z);
+    scene.add(label);
+    mapClusterLabels.push(label);
+
+    // Add nodes arranged around center
+    nodes.forEach((node, ni) => {
+      addNodeToSceneMap(node, center, ni, nodes.length);
+    });
+
+    // Intra-cluster lines: connect all nodes in this planet
+    const planetNodeIds = nodes.map(n => n.id);
+    if (planetNodeIds.length >= 2) {
+      // Connect each node to its neighbors in the ring, plus connect to center hub
+      for (let j = 0; j < planetNodeIds.length; j++) {
+        const nextJ = (j + 1) % planetNodeIds.length;
+        const a = nodeMeshes.get(planetNodeIds[j]);
+        const b = nodeMeshes.get(planetNodeIds[nextJ]);
+        if (a && b) {
+          const geo = new THREE.BufferGeometry().setFromPoints([a.group.position.clone(), b.group.position.clone()]);
+          const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(planet.color), transparent: true, opacity: 0.15 });
+          const line = new THREE.Line(geo, mat);
+          scene.add(line);
+          mapClusterLines.push(line);
+        }
+      }
+    }
+  });
+
+  // Active node connection lines (cross-cluster, green)
+  updateConnectionLines();
+
+  // Camera: top-down with slight angle
+  if (resetCamera) {
+    const camPos = new THREE.Vector3(0, 40, 20);
+    const origin = new THREE.Vector3(0, 0, 0);
+    animateCamera(camPos, origin, 1.2, () => {
+      controls.minDistance = 10;
+      controls.maxDistance = 80;
+    });
+  }
+
+  // UI updates
+  document.getElementById('back-to-solar-btn').style.display = 'none';
+  document.getElementById('map-toggle-btn').textContent = '\u25a6 Solar';
+  document.getElementById('map-toggle-btn').classList.add('active-btn');
+}
+
+function addNodeToSceneMap(node, clusterCenter, nodeIndex, totalNodes) {
+  if (nodeMeshes.has(node.id)) return;
+  const group = new THREE.Group();
+  const size = getNodeSize(node);
+  const color = getNodeColor(node);
+
+  const geo = new THREE.SphereGeometry(size, 16, 16);
+  const mat = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.3, transparent: true, opacity: node.status === 'inbox' ? 0.6 : 0.9 });
+  const sphere = new THREE.Mesh(geo, mat);
+  sphere.userData = { nodeId: node.id };
+  group.add(sphere);
+
+  if (node.status === 'active') {
+    const isNow = node.id === state.nowNodeId;
+    const ringSize = isNow ? size * 2.2 : size * 1.5;
+    const ringGeo = new THREE.RingGeometry(ringSize * 0.85, ringSize, 32);
+    const ringColor = isNow ? 0xffcc33 : 0x00ff88;
+    const ringMat = new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: isNow ? 0.35 : 0.2, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.name = 'glow-ring';
+    group.add(ring);
+  }
+
+  if (node.mode && MODE_COLORS[node.mode]) {
+    const badgeGeo = new THREE.SphereGeometry(0.06, 8, 8);
+    const badgeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(MODE_COLORS[node.mode]) });
+    const badge = new THREE.Mesh(badgeGeo, badgeMat);
+    badge.position.set(size + 0.12, -size * 0.5, 0);
+    badge.name = 'mode-badge';
+    group.add(badge);
+  }
+
+  const label = createTextSprite(node.title, node.status === 'active');
+  label.position.set(0, size + 0.25, 0);
+  label.name = 'label';
+  group.add(label);
+
+  if (isMobile) {
+    const hitGeo = new THREE.SphereGeometry(size * 2.5, 8, 8);
+    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+    const hitSphere = new THREE.Mesh(hitGeo, hitMat);
+    hitSphere.userData = { nodeId: node.id };
+    hitSphere.name = 'hit-area';
+    group.add(hitSphere);
+  }
+
+  const pos = getMapNodePosition(node, clusterCenter, nodeIndex, totalNodes);
+  group.position.set(pos.x, pos.y, pos.z);
+
+  scene.add(group);
+  nodeMeshes.set(node.id, { sphere, label, group, node });
+}
+
+function teardownMapView() {
+  nodeMeshes.forEach(entry => scene.remove(entry.group));
+  nodeMeshes.clear();
+  connectionLines.forEach(l => scene.remove(l));
+  connectionLines = [];
+  mapClusterLines.forEach(l => scene.remove(l));
+  mapClusterLines = [];
+  mapClusterLabels.forEach(l => scene.remove(l));
+  mapClusterLabels = [];
+  mapClusterCircles.forEach(c => scene.remove(c));
+  mapClusterCircles = [];
+  document.getElementById('map-toggle-btn').textContent = '\u25a6 Map';
+  document.getElementById('map-toggle-btn').classList.remove('active-btn');
+}
+
+function switchToMapView() {
+  if (viewMode === 'map') return;
+  if (viewMode === 'planet') teardownPlanetView();
+  if (viewMode === 'sectors') teardownSectorsView();
+  if (viewMode === 'solar') {
+    planetMeshes.forEach(e => scene.remove(e.group));
+    planetMeshes.clear();
+    orbitRings.forEach(r => scene.remove(r));
+    orbitRings = [];
+    crossPlanetLines.forEach(l => scene.remove(l));
+    crossPlanetLines = [];
+    if (solarCenterMesh) { scene.remove(solarCenterMesh); solarCenterMesh = null; }
+  }
+  buildMapView();
+}
+
+function switchFromMapToSolar() {
+  teardownMapView();
   viewMode = 'solar';
   currentPlanetId = null;
   buildSolarSystem();
@@ -1713,16 +1925,24 @@ function rebuildCurrentView() {
   sectorDividers = [];
   sectorLabels.forEach(l => scene.remove(l));
   sectorLabels = [];
+  mapClusterLines.forEach(l => scene.remove(l));
+  mapClusterLines = [];
+  mapClusterLabels.forEach(l => scene.remove(l));
+  mapClusterLabels = [];
+  mapClusterCircles.forEach(c => scene.remove(c));
+  mapClusterCircles = [];
 
-  if (viewMode === 'sectors') {
-    buildSectorsView();
+  if (viewMode === 'map') {
+    buildMapView(false);
+  } else if (viewMode === 'sectors') {
+    buildSectorsView(false);
   } else if (viewMode === 'planet' && currentPlanetId) {
-    buildSolarSystem();
+    buildSolarSystem(false);
     buildPlanetView(currentPlanetId);
   } else {
     viewMode = 'solar';
     currentPlanetId = null;
-    buildSolarSystem();
+    buildSolarSystem(false);
   }
   updateInboxBadge();
 }
@@ -1822,6 +2042,8 @@ function createTextSprite(text, isActive, colorHex) {
 }
 
 function updateNodeVisual(node) {
+  // Map view: positions depend on node count per cluster, so rebuild entirely
+  if (viewMode === 'map') { rebuildCurrentView(); return; }
   const entry = nodeMeshes.get(node.id);
   if (!entry) {
     if (node.status !== 'archived' && node.status !== 'done') {
@@ -2028,6 +2250,77 @@ function animate() {
     });
 
     // Connection lines update
+    if (connectionLines.length > 0) {
+      const activeNodes = getActiveNodes();
+      let idx = 0;
+      for (let i = 0; i < activeNodes.length; i++) {
+        for (let j = i + 1; j < activeNodes.length; j++) {
+          if (idx >= connectionLines.length) break;
+          const a = nodeMeshes.get(activeNodes[i].id);
+          const b = nodeMeshes.get(activeNodes[j].id);
+          if (a && b) {
+            const pos = connectionLines[idx].geometry.attributes.position;
+            pos.setXYZ(0, a.group.position.x, a.group.position.y, a.group.position.z);
+            pos.setXYZ(1, b.group.position.x, b.group.position.y, b.group.position.z);
+            pos.needsUpdate = true;
+          }
+          idx++;
+        }
+      }
+    }
+  }
+
+  // Map view: glow rings, labels, cluster lines, connection lines
+  if (viewMode === 'map') {
+    nodeMeshes.forEach((entry, id) => {
+      // Glow ring
+      const ring = entry.group.getObjectByName('glow-ring');
+      if (ring) {
+        ring.lookAt(camera.position);
+        const offset = id.charCodeAt(0) * 0.1;
+        const isNow = entry.node.id === state.nowNodeId;
+        if (isNow) {
+          ring.material.opacity = 0.2 + Math.sin(time * 3 + offset) * 0.15;
+          const scale = 1.0 + Math.sin(time * 2) * 0.15;
+          ring.scale.set(scale, scale, 1);
+        } else {
+          ring.material.opacity = 0.15 + Math.sin(time * 2 + offset) * 0.08;
+        }
+      }
+      // Label fade with distance
+      const dist = camera.position.distanceTo(entry.group.position);
+      if (entry.label.material) entry.label.material.opacity = Math.max(0, Math.min(1, 1 - (dist - 10) / 30));
+    });
+
+    // Cluster labels: constant screen size
+    mapClusterLabels.forEach(label => {
+      const dist = camera.position.distanceTo(label.position);
+      const scale = dist * 0.04;
+      label.scale.set(scale, scale * 0.3, 1);
+    });
+
+    // Update cluster lines positions (nodes don't move, but keep in sync)
+    let cli = 0;
+    state.planets.forEach(planet => {
+      const nodes = getVisibleNodes(planet.id);
+      const nodeIds = nodes.map(n => n.id);
+      if (nodeIds.length >= 2) {
+        for (let j = 0; j < nodeIds.length; j++) {
+          const nextJ = (j + 1) % nodeIds.length;
+          const a = nodeMeshes.get(nodeIds[j]);
+          const b = nodeMeshes.get(nodeIds[nextJ]);
+          if (a && b && cli < mapClusterLines.length) {
+            const pos = mapClusterLines[cli].geometry.attributes.position;
+            pos.setXYZ(0, a.group.position.x, a.group.position.y, a.group.position.z);
+            pos.setXYZ(1, b.group.position.x, b.group.position.y, b.group.position.z);
+            pos.needsUpdate = true;
+          }
+          cli++;
+        }
+      }
+    });
+
+    // Active connection lines update
     if (connectionLines.length > 0) {
       const activeNodes = getActiveNodes();
       let idx = 0;
@@ -2303,7 +2596,7 @@ document.getElementById('list-close-btn').addEventListener('click', closeListVie
 });
 
 function filterGlobeNodes() {
-  if (viewMode !== 'planet' && viewMode !== 'sectors') return;
+  if (viewMode !== 'planet' && viewMode !== 'sectors' && viewMode !== 'map') return;
   const search = document.getElementById('search-input').value.toLowerCase();
   const catFilter = document.getElementById('filter-category').value;
   const statusFilter = document.getElementById('filter-status').value;
@@ -2387,6 +2680,12 @@ document.getElementById('back-to-solar-btn').addEventListener('click', zoomOutTo
 document.getElementById('sectors-toggle-btn').addEventListener('click', () => {
   if (viewMode === 'sectors') switchFromSectorsToSolar();
   else switchToSectorsView();
+});
+
+// Map toggle
+document.getElementById('map-toggle-btn').addEventListener('click', () => {
+  if (viewMode === 'map') switchFromMapToSolar();
+  else switchToMapView();
 });
 
 // ================================================================
@@ -2485,7 +2784,7 @@ function raycastFromPoint(clientX, clientY) {
     });
     const intersects = raycaster.intersectObjects(targets);
     return intersects.length > 0 ? { type: 'planet', id: intersects[0].object.userData.planetId } : null;
-  } else if (viewMode === 'sectors' || viewMode === 'planet') {
+  } else if (viewMode === 'sectors' || viewMode === 'planet' || viewMode === 'map') {
     const targets = [];
     nodeMeshes.forEach(entry => {
       targets.push(entry.sphere);
@@ -2600,8 +2899,9 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openQuickAdd(); }
   else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); document.getElementById('list-view').classList.contains('visible') ? closeListView() : openListView(); }
   else if (e.key === 's' || e.key === 'S') { e.preventDefault(); if (viewMode === 'sectors') switchFromSectorsToSolar(); else switchToSectorsView(); }
+  else if (e.key === 'm' || e.key === 'M') { e.preventDefault(); if (viewMode === 'map') switchFromMapToSolar(); else switchToMapView(); }
   else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); }
-  else if (e.key === 'Escape') { closeQuickAdd(); closeSidePanel(); closeListView(); closePlanetManager(); if (viewMode === 'planet') zoomOutToSolar(); else if (viewMode === 'sectors') switchFromSectorsToSolar(); }
+  else if (e.key === 'Escape') { closeQuickAdd(); closeSidePanel(); closeListView(); closePlanetManager(); if (viewMode === 'planet') zoomOutToSolar(); else if (viewMode === 'sectors') switchFromSectorsToSolar(); else if (viewMode === 'map') switchFromMapToSolar(); }
   else if (e.key === 'Backspace' && viewMode === 'planet') { zoomOutToSolar(); }
 });
 
